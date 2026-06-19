@@ -1,0 +1,26 @@
+{
+  "name": "reelvault",
+  "private": true,
+  "version": "0.1.0",
+  "description": "ReelVault — sauvegarde et organise automatiquement tes réels Instagram (web + mobile + backend Supabase).",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "web": "npm run dev --workspace @reelvault/web",
+    "mobile": "npm run start --workspace @reelvault/mobile",
+    "db:reset": "supabase db reset",
+    "db:push": "supabase db push",
+    "functions:serve": "supabase functions serve --no-verify-jwt",
+    "lint": "echo \"(lint par app)\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "comment": "react/react-dom 18.3.1 sont déclarés ici pour FORCER le hoist de cette version à la racine (requise par Next 15 côté web). L'app mobile épingle react 18.2.0 et obtient donc une copie imbriquée isolée dans apps/mobile/node_modules.",
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}

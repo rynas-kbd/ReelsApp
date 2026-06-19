@@ -1,0 +1,39 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# builds
+dist/
+build/
+.next/
+out/
+.expo/
+.expo-shared/
+*.tsbuildinfo
+
+# env / secrets — on ignore TOUS les fichiers .env, partout, y compris .env.example
+# (car ils contiennent de vraies clés). Couvre .env, .env.local, .env.example,
+# .env.production, etc., dans n'importe quel sous-dossier.
+.env
+.env.*
+*.env
+**/.env
+**/.env.*
+
+# supabase
+supabase/.branches
+supabase/.temp
+
+# native
+*.keystore
+*.jks
+android/app/build/
+ios/build/
+
+# misc
+.DS_Store
+*.log
+npm-debug.log*
+.vercel
+coverage/

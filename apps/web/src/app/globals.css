@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Variables CSS dérivées de @reelvault/design-tokens (dark mode par défaut).
+ * Les valeurs HSL alimentent les composants shadcn ; les valeurs hex brutes
+ * sont mappées dans tailwind.config.ts via le package de tokens.
+ */
+:root {
+  /* Fonds / surfaces (dark mode par défaut) */
+  --background: 240 17% 5%; /* #0B0B0F */
+  --foreground: 240 5% 96%; /* #F4F4F5 */
+
+  --card: 240 14% 10%; /* #16161D */
+  --card-foreground: 240 5% 96%;
+
+  --popover: 240 14% 12%; /* #1F1F29 */
+  --popover-foreground: 240 5% 96%;
+
+  --primary: 262 83% 58%; /* #7C3AED */
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 240 13% 15%; /* #1F1F29 */
+  --secondary-foreground: 240 5% 96%;
+
+  --muted: 240 13% 15%;
+  --muted-foreground: 240 5% 65%; /* #A1A1AA */
+
+  --accent: 262 83% 58%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 84% 60%; /* #EF4444 */
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 240 14% 19%; /* #2A2A36 */
+  --input: 240 14% 19%;
+  --ring: 262 83% 58%; /* #7C3AED */
+
+  --radius: 0.75rem;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: 'rlig' 1, 'calt' 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Dégradé d'accent réutilisable */
+.text-gradient-accent {
+  background: linear-gradient(135deg, #7c3aed 0%, #d946ef 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.bg-gradient-accent {
+  background-image: linear-gradient(135deg, #7c3aed 0%, #d946ef 100%);
+}
+
+/* Scrollbar discrète */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a36;
+  border-radius: 9999px;
+  border: 2px solid #0b0b0f;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a48;
+}
