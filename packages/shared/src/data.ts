@@ -81,7 +81,7 @@ export async function fetchProfile(supabase: SupabaseClient, userId: string): Pr
 export async function updateProfile(
   supabase: SupabaseClient,
   userId: string,
-  patch: Partial<Pick<Profile, 'display_name' | 'notif_enabled' | 'expo_push_token'>>,
+  patch: Partial<Pick<Profile, 'display_name' | 'notif_enabled' | 'expo_push_token' | 'onboarded'>>,
 ): Promise<void> {
   const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
   if (error) throw error;

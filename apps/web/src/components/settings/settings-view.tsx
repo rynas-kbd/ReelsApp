@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Copy, FileDown, FileText, Instagram, Loader2, Moon } from 'lucide-react';
+import { FileDown, FileText, Instagram, Loader2, LogOut, Moon } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   STRINGS,
-  ensureConnection,
+  fetchConnection,
   fetchProfile,
   updateProfile,
   fetchReels,
@@ -32,7 +32,8 @@ export function SettingsView({ userId }: { userId: string }) {
 
   const [savingName, setSavingName] = useState(false);
   const [savingNotif, setSavingNotif] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [exporting, setExporting] = useState<'csv' | 'pdf' | null>(null);
 
   useEffect(() => {
@@ -40,7 +41,7 @@ export function SettingsView({ userId }: { userId: string }) {
       try {
         const [p, c] = await Promise.all([
           fetchProfile(supabase, userId),
-          ensureConnection(supabase, userId),
+          fetchConnection(supabase),
         ]);
         setProfile(p);
         setDisplayName(p?.display_name ?? '');
@@ -52,6 +53,23 @@ export function SettingsView({ userId }: { userId: string }) {
       }
     })();
   }, [supabase, userId]);
+
+  // Affiche le résultat du retour OAuth (?ig=…) puis nettoie l'URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ig = params.get('ig');
+    if (!ig) return;
+    const messages: Record<string, () => void> = {
+      connected: () => toast.success(STRINGS.instagram.connectSuccess),
+      disconnected: () => toast.success(STRINGS.instagram.disconnectSuccess),
+      denied: () => toast.error(STRINGS.instagram.errorDenied),
+      state: () => toast.error(STRINGS.instagram.errorState),
+      exchange: () => toast.error(STRINGS.instagram.errorExchange),
+      config: () => toast.error(STRINGS.instagram.errorConfig),
+    };
+    (messages[ig] ?? (() => {}))();
+    window.history.replaceState({}, '', window.location.pathname);
+  }, []);
 
   async function saveName() {
     setSavingName(true);
@@ -79,16 +97,9 @@ export function SettingsView({ userId }: { userId: string }) {
     }
   }
 
-  async function copyCode() {
-    if (!connection) return;
-    try {
-      await navigator.clipboard.writeText(connection.activation_code);
-      setCopied(true);
-      toast.success(STRINGS.instagram.copied);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error(STRINGS.common.error);
-    }
+  function connectInstagram() {
+    setConnecting(true);
+    window.location.href = '/api/instagram/connect';
   }
 
   async function exportCsv() {
@@ -180,39 +191,34 @@ export function SettingsView({ userId }: { userId: string }) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {status === 'active' && connection?.ig_username ? (
-            <p className="text-sm text-text-secondary">
-              {STRINGS.instagram.connectedAs}{' '}
-              <span className="font-medium text-text">@{connection.ig_username}</span>
-            </p>
+          {status === 'active' ? (
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-text-secondary">
+                {STRINGS.instagram.connectedAs}{' '}
+                <span className="font-medium text-text">
+                  @{connection?.ig_username ?? '—'}
+                </span>
+              </p>
+              <form action="/api/instagram/disconnect" method="post">
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  size="sm"
+                  disabled={disconnecting}
+                  onClick={() => setDisconnecting(true)}
+                >
+                  {disconnecting ? <Loader2 className="animate-spin" /> : <LogOut />}
+                  {STRINGS.instagram.disconnect}
+                </Button>
+              </form>
+            </div>
           ) : (
             <>
-              <p className="text-sm font-medium text-text">{STRINGS.instagram.activationTitle}</p>
-              <ol className="space-y-3 text-sm text-text-secondary">
-                <li className="flex gap-2">
-                  <span className="font-semibold text-accent">1.</span>
-                  {STRINGS.instagram.activationStep1}
-                </li>
-                <li className="flex flex-col gap-2">
-                  <span className="flex gap-2">
-                    <span className="font-semibold text-accent">2.</span>
-                    {STRINGS.instagram.activationStep2}
-                  </span>
-                  <div className="ml-5 flex items-center gap-2">
-                    <code className="rounded-lg border border-border-strong bg-surface-2 px-3 py-1.5 font-mono text-base tracking-widest text-text">
-                      {connection?.activation_code ?? '—'}
-                    </code>
-                    <Button variant="secondary" size="sm" onClick={copyCode}>
-                      {copied ? <Check className="text-success" /> : <Copy />}
-                      {STRINGS.instagram.copyCode}
-                    </Button>
-                  </div>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-semibold text-accent">3.</span>
-                  {STRINGS.instagram.activationStep3}
-                </li>
-              </ol>
+              <p className="text-sm text-text-secondary">{STRINGS.instagram.intro}</p>
+              <Button onClick={connectInstagram} disabled={connecting}>
+                {connecting ? <Loader2 className="animate-spin" /> : <Instagram />}
+                {connecting ? STRINGS.instagram.connecting : STRINGS.instagram.connect}
+              </Button>
             </>
           )}
         </CardContent>

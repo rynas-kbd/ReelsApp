@@ -9,6 +9,7 @@ export interface Profile {
   display_name: string | null;
   notif_enabled: boolean;
   expo_push_token: string | null;
+  onboarded: boolean;
   created_at: string;
 }
 
@@ -53,7 +54,9 @@ export interface InstagramConnection {
   ig_account_id: string | null;
   ig_username: string | null;
   page_id: string | null;
-  activation_code: string;
+  activation_code: string | null;
+  access_token: string | null;
+  token_expires_at: string | null;
   status: ConnectionStatus;
   connected_at: string | null;
   created_at: string;
