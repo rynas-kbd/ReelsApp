@@ -3,7 +3,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
-const PUBLIC_ROUTES = ['/login', '/signup', '/auth'];
+// /api/instagram/* gère sa propre auth (session cookie OU Bearer mobile OU state) :
+// le middleware ne doit pas y forcer une session (sinon il casse le retour mobile
+// du callback, qui n'a pas de cookie de session web).
+const PUBLIC_ROUTES = ['/login', '/signup', '/auth', '/api/instagram'];
 
 /** Rafraîchit la session et protège les routes applicatives. */
 export async function updateSession(request: NextRequest) {
