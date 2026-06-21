@@ -9,12 +9,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
+import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  ensureConnection,
+  fetchConnection,
   fetchProfile,
   updateProfile,
+  startInstagramOAuth,
+  disconnectInstagram,
   STRINGS,
   type InstagramConnection,
   type Profile,
@@ -39,13 +41,15 @@ export default function SettingsScreen() {
   const [displayName, setDisplayName] = useState('');
   const [notifBusy, setNotifBusy] = useState(false);
   const [savingName, setSavingName] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     if (!userId) return;
     const [prof, conn] = await Promise.all([
       fetchProfile(supabase, userId),
-      ensureConnection(supabase, userId),
+      fetchConnection(supabase),
     ]);
     setProfile(prof);
     setConnection(conn);
@@ -94,10 +98,40 @@ export default function SettingsScreen() {
     }
   }
 
-  async function onCopyCode() {
-    if (!connection) return;
-    await Clipboard.setStringAsync(connection.activation_code);
-    show(STRINGS.instagram.copied, 'success');
+  async function connectInstagram() {
+    setConnecting(true);
+    try {
+      const url = await startInstagramOAuth(supabase, 'mobile');
+      const result = await WebBrowser.openAuthSessionAsync(url, 'reelvault://instagram');
+      if (result.type === 'success') {
+        const status = result.url.match(/[?&]status=([^&]+)/)?.[1];
+        if (status === 'connected') {
+          show(STRINGS.instagram.connectSuccess, 'success');
+          await load();
+        } else if (status === 'denied') {
+          show(STRINGS.instagram.errorDenied, 'error');
+        } else {
+          show(STRINGS.instagram.errorExchange, 'error');
+        }
+      }
+    } catch {
+      show(STRINGS.instagram.errorConfig, 'error');
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  async function disconnect() {
+    setDisconnecting(true);
+    try {
+      await disconnectInstagram(supabase);
+      setConnection((c) => (c ? { ...c, status: 'revoked' } : c));
+      show(STRINGS.instagram.disconnectSuccess, 'success');
+    } catch {
+      show(STRINGS.common.error, 'error');
+    } finally {
+      setDisconnecting(false);
+    }
   }
 
   function statusLabel(): string {
@@ -179,22 +213,30 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          <Text style={styles.activationTitle}>{STRINGS.instagram.activationTitle}</Text>
-          <Text style={styles.step}>1. {STRINGS.instagram.activationStep1}</Text>
-          <Text style={styles.step}>2. {STRINGS.instagram.activationStep2}</Text>
-
-          <Pressable style={styles.codeBox} onPress={onCopyCode}>
-            <Text style={styles.code}>{connection?.activation_code ?? '—'}</Text>
-            <Ionicons name="copy-outline" size={18} color={colors.accentTo} />
-          </Pressable>
-
-          <Text style={styles.step}>3. {STRINGS.instagram.activationStep3}</Text>
-
-          <OutlineButton
-            label={STRINGS.instagram.copyCode}
-            onPress={onCopyCode}
-            style={{ marginTop: spacing.md }}
-          />
+          {connection?.status === 'active' ? (
+            <>
+              <Text style={styles.activationTitle}>
+                {STRINGS.instagram.connectedAs}{' '}
+                <Text style={styles.connectedUser}>@{connection.ig_username ?? '—'}</Text>
+              </Text>
+              <OutlineButton
+                label={disconnecting ? STRINGS.instagram.disconnecting : STRINGS.instagram.disconnect}
+                onPress={disconnect}
+                disabled={disconnecting}
+                style={{ marginTop: spacing.md }}
+              />
+            </>
+          ) : (
+            <>
+              <Text style={[styles.step, { marginTop: spacing.md }]}>{STRINGS.instagram.intro}</Text>
+              <GradientButton
+                label={STRINGS.instagram.connect}
+                onPress={connectInstagram}
+                loading={connecting}
+                style={{ marginTop: spacing.md }}
+              />
+            </>
+          )}
         </View>
 
         {/* Déconnexion */}
@@ -303,6 +345,10 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.lg,
     fontWeight: typography.weights.bold,
     letterSpacing: 2,
+  },
+  connectedUser: {
+    color: colors.accentTo,
+    fontWeight: typography.weights.bold,
   },
   logout: {
     flexDirection: 'row',

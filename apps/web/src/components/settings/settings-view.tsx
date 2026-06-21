@@ -9,6 +9,8 @@ import {
   fetchProfile,
   updateProfile,
   fetchReels,
+  startInstagramOAuth,
+  disconnectInstagram,
   type InstagramConnection,
   type Profile,
 } from '@reelvault/shared';
@@ -97,9 +99,28 @@ export function SettingsView({ userId }: { userId: string }) {
     }
   }
 
-  function connectInstagram() {
+  async function connectInstagram() {
     setConnecting(true);
-    window.location.href = '/api/instagram/connect';
+    try {
+      const url = await startInstagramOAuth(supabase, 'web', '/settings');
+      window.location.href = url;
+    } catch {
+      setConnecting(false);
+      toast.error(STRINGS.instagram.errorConfig);
+    }
+  }
+
+  async function disconnect() {
+    setDisconnecting(true);
+    try {
+      await disconnectInstagram(supabase);
+      setConnection((c) => (c ? { ...c, status: 'revoked', ig_username: c.ig_username } : c));
+      toast.success(STRINGS.instagram.disconnectSuccess);
+    } catch {
+      toast.error(STRINGS.common.error);
+    } finally {
+      setDisconnecting(false);
+    }
   }
 
   async function exportCsv() {
@@ -199,18 +220,15 @@ export function SettingsView({ userId }: { userId: string }) {
                   @{connection?.ig_username ?? '—'}
                 </span>
               </p>
-              <form action="/api/instagram/disconnect" method="post">
-                <Button
-                  type="submit"
-                  variant="secondary"
-                  size="sm"
-                  disabled={disconnecting}
-                  onClick={() => setDisconnecting(true)}
-                >
-                  {disconnecting ? <Loader2 className="animate-spin" /> : <LogOut />}
-                  {STRINGS.instagram.disconnect}
-                </Button>
-              </form>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={disconnecting}
+                onClick={disconnect}
+              >
+                {disconnecting ? <Loader2 className="animate-spin" /> : <LogOut />}
+                {STRINGS.instagram.disconnect}
+              </Button>
             </div>
           ) : (
             <>

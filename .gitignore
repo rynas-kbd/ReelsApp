@@ -37,3 +37,5 @@ ios/build/
 npm-debug.log*
 .vercel
 coverage/
+
+.vercel

@@ -44,3 +44,8 @@ verify_jwt = true
 
 [functions.push-notify]
 verify_jwt = false
+
+# Le callback OAuth est public (appelé par Instagram) ; l'action 'start'
+# vérifie le JWT manuellement.
+[functions.instagram-oauth]
+verify_jwt = false

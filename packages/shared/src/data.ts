@@ -117,6 +117,39 @@ export async function ensureConnection(
   return data as InstagramConnection;
 }
 
+/**
+ * Démarre le flux OAuth Instagram via l'Edge Function `instagram-oauth`.
+ * Renvoie l'URL d'autorisation Instagram à ouvrir (web : redirection ;
+ * mobile : navigateur d'auth). Le JWT utilisateur est attaché automatiquement.
+ */
+export async function startInstagramOAuth(
+  supabase: SupabaseClient,
+  platform: 'web' | 'mobile',
+  next?: string,
+): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('instagram-oauth', {
+    body: { action: 'start', platform, next },
+  });
+  if (error) throw error;
+  const authUrl = (data as { authUrl?: string } | null)?.authUrl;
+  if (!authUrl) throw new Error('authUrl manquant');
+  return authUrl;
+}
+
+/** Déconnecte le compte Instagram de l'utilisateur courant (RLS = ses lignes). */
+export async function disconnectInstagram(supabase: SupabaseClient): Promise<void> {
+  const { error } = await supabase
+    .from('instagram_connections')
+    .update({
+      status: 'revoked',
+      access_token: null,
+      token_expires_at: null,
+      connected_at: null,
+    })
+    .eq('status', 'active');
+  if (error) throw error;
+}
+
 /** Incrémente le compteur de vues + journalise (pour les stats). */
 export async function recordView(supabase: SupabaseClient, reelId: string): Promise<void> {
   await supabase.rpc('increment_reel_view', { p_reel_id: reelId });
