@@ -155,6 +155,34 @@ Pour capter les messages, Meta exige une validation de la permission **`instagra
    ```
 > Tant qu'oEmbed Read n'est pas activé/validé, les réels s'affichent avec une miniature par défaut (l'IA les classe quand même). Une fois activé, les vraies miniatures/légendes/auteurs apparaissent automatiquement.
 
+### 5.7 Connexion du compte par bouton « Se connecter avec Instagram » (OAuth)
+
+> Depuis la refonte, l'utilisateur ne tape **plus** de code d'activation : il clique
+> sur **« Se connecter avec Instagram »** (dans l'onboarding, dans les Réglages web,
+> et dans l'app mobile). Tout passe par l'Edge Function Supabase `instagram-oauth`,
+> partagée par le web **et** le mobile.
+
+**Ce qui est déjà fait côté code/serveur (automatique) :**
+- Edge Function `instagram-oauth` déployée (start + callback).
+- Secrets Supabase posés : `INSTAGRAM_CLIENT_ID`, `INSTAGRAM_CLIENT_SECRET`,
+  `INSTAGRAM_REDIRECT_URI`, `SITE_URL`, `MOBILE_REDIRECT`.
+
+**La seule chose à faire à la main dans Meta** — enregistrer l'URI de redirection OAuth :
+1. Ouvre l'app Meta utilisée pour l'OAuth → **API d'Instagram avec connexion Instagram**
+   (Instagram → API setup with Instagram login) → **Réglages OAuth (Business login)**.
+2. Dans **« Valid OAuth Redirect URIs »**, ajoute exactement :
+   ```
+   https://blcfnifgwyjiltbffxyl.supabase.co/functions/v1/instagram-oauth/callback
+   ```
+3. Vérifie que les **scopes** demandés incluent `instagram_business_basic` et
+   `instagram_business_manage_messages`, puis enregistre.
+4. En mode développement, ça marche tout de suite pour **ton** compte (testeur). Pour le
+   public, il faut l'App Review des scopes (comme pour le webhook).
+
+> Astuce : `SITE_URL` n'est qu'un repli. L'Edge Function mémorise l'origine réelle du
+> site au lancement du flux (prod **et** preview Vercel gérés automatiquement). Côté
+> mobile, le retour se fait via le deep link `reelvault://instagram`.
+
 ## 🌐 Étape 6 — Mettre le site web en ligne (Vercel)
 
 1. Mets le code sur GitHub (crée un dépôt et pousse le dossier `reelvault`), ou connecte directement Vercel à ton dossier.
