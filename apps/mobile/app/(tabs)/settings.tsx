@@ -26,6 +26,7 @@ import { GradientButton, OutlineButton } from '../../components/GradientButton';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
+import { SITE_URL } from '../../lib/env';
 import {
   registerForPushNotificationsAsync,
   unregisterPushToken,
@@ -101,7 +102,7 @@ export default function SettingsScreen() {
   async function connectInstagram() {
     setConnecting(true);
     try {
-      const url = await startInstagramOAuth(supabase, 'mobile');
+      const url = await startInstagramOAuth(supabase, SITE_URL);
       const result = await WebBrowser.openAuthSessionAsync(url, 'reelvault://instagram');
       if (result.type === 'success') {
         const status = result.url.match(/[?&]status=([^&]+)/)?.[1];

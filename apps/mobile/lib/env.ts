@@ -25,6 +25,10 @@ export const SUPABASE_URL: string =
 export const SUPABASE_ANON_KEY: string =
   extra.supabaseAnonKey ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
+/** URL publique du site web ReelVault (sert le flux de connexion Instagram). */
+export const SITE_URL: string =
+  process.env.EXPO_PUBLIC_SITE_URL ?? 'https://reels-app-web.vercel.app';
+
 if (__DEV__ && (!SUPABASE_URL || !SUPABASE_ANON_KEY)) {
   // eslint-disable-next-line no-console
   console.warn(

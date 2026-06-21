@@ -9,7 +9,6 @@ import {
   fetchProfile,
   updateProfile,
   fetchReels,
-  startInstagramOAuth,
   disconnectInstagram,
   type InstagramConnection,
   type Profile,
@@ -99,15 +98,9 @@ export function SettingsView({ userId }: { userId: string }) {
     }
   }
 
-  async function connectInstagram() {
+  function connectInstagram() {
     setConnecting(true);
-    try {
-      const url = await startInstagramOAuth(supabase, 'web', '/settings');
-      window.location.href = url;
-    } catch {
-      setConnecting(false);
-      toast.error(STRINGS.instagram.errorConfig);
-    }
+    window.location.href = '/api/instagram/connect?next=/settings';
   }
 
   async function disconnect() {

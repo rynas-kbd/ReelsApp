@@ -12,7 +12,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { STRINGS, startInstagramOAuth, updateProfile } from '@reelvault/shared';
+import { STRINGS, updateProfile } from '@reelvault/shared';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/brand/logo';
 import { Button } from '@/components/ui/button';
@@ -55,15 +55,9 @@ export function OnboardingWizard({
   const step = STEPS[stepIndex];
   const total = STEPS.length;
 
-  async function connectInstagram() {
+  function connectInstagram() {
     setConnecting(true);
-    try {
-      const url = await startInstagramOAuth(supabase, 'web', '/onboarding');
-      window.location.href = url;
-    } catch {
-      setConnecting(false);
-      toast.error(STRINGS.instagram.errorConfig);
-    }
+    window.location.href = '/api/instagram/connect?next=/onboarding';
   }
 
   async function finish() {

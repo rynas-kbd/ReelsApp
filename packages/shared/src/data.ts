@@ -118,22 +118,28 @@ export async function ensureConnection(
 }
 
 /**
- * Démarre le flux OAuth Instagram via l'Edge Function `instagram-oauth`.
- * Renvoie l'URL d'autorisation Instagram à ouvrir (web : redirection ;
- * mobile : navigateur d'auth). Le JWT utilisateur est attaché automatiquement.
+ * Démarre le flux OAuth Instagram pour le MOBILE : appelle la route web
+ * `/api/instagram/connect?platform=mobile` (sur `siteUrl`) avec le JWT de
+ * l'utilisateur, et renvoie l'URL d'autorisation Instagram à ouvrir dans le
+ * navigateur d'auth. (Le web, lui, navigue directement vers la route.)
  */
 export async function startInstagramOAuth(
   supabase: SupabaseClient,
-  platform: 'web' | 'mobile',
-  next?: string,
+  siteUrl: string,
 ): Promise<string> {
-  const { data, error } = await supabase.functions.invoke('instagram-oauth', {
-    body: { action: 'start', platform, next },
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) throw new Error('non authentifié');
+
+  const res = await fetch(`${siteUrl.replace(/\/$/, '')}/api/instagram/connect?platform=mobile`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
-  if (error) throw error;
-  const authUrl = (data as { authUrl?: string } | null)?.authUrl;
-  if (!authUrl) throw new Error('authUrl manquant');
-  return authUrl;
+  if (!res.ok) throw new Error('connect failed');
+  const data = (await res.json()) as { authUrl?: string };
+  if (!data.authUrl) throw new Error('authUrl manquant');
+  return data.authUrl;
 }
 
 /** Déconnecte le compte Instagram de l'utilisateur courant (RLS = ses lignes). */
