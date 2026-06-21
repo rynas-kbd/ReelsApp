@@ -157,31 +157,36 @@ Pour capter les messages, Meta exige une validation de la permission **`instagra
 
 ### 5.7 Connexion du compte par bouton « Se connecter avec Instagram » (OAuth)
 
-> Depuis la refonte, l'utilisateur ne tape **plus** de code d'activation : il clique
-> sur **« Se connecter avec Instagram »** (dans l'onboarding, dans les Réglages web,
-> et dans l'app mobile). Tout passe par l'Edge Function Supabase `instagram-oauth`,
-> partagée par le web **et** le mobile.
+> L'utilisateur ne tape **plus** de code d'activation : il clique sur
+> **« Se connecter avec Instagram »** (onboarding, Réglages web, app mobile).
+> L'OAuth passe par des **routes Next.js** (`/api/instagram/connect` →
+> `/api/instagram/callback`), sur le domaine de l'app (pattern éprouvé). Une seule
+> redirect_uri sert le web **et** le mobile (retour mobile via deep link `reelvault://instagram`).
 
-**Ce qui est déjà fait côté code/serveur (automatique) :**
-- Edge Function `instagram-oauth` déployée (start + callback).
-- Secrets Supabase posés : `INSTAGRAM_CLIENT_ID`, `INSTAGRAM_CLIENT_SECRET`,
-  `INSTAGRAM_REDIRECT_URI`, `SITE_URL`, `MOBILE_REDIRECT`.
+**A. Variables d'environnement à poser sur Vercel** (projet `reels-app-web` → Settings → Environment Variables) :
+| Variable | Valeur |
+|---|---|
+| `META_APP_ID` | `1523515752503377` |
+| `META_APP_SECRET` | (App Secret de l'app Meta de ReelVault) |
+| `NEXT_PUBLIC_META_APP_ID` | `1523515752503377` |
+| `NEXT_PUBLIC_SITE_URL` | `https://reels-app-web.vercel.app` |
+| `SUPABASE_SERVICE_ROLE_KEY` | (clé service_role du projet Supabase) |
 
-**La seule chose à faire à la main dans Meta** — enregistrer l'URI de redirection OAuth :
-1. Ouvre l'app Meta utilisée pour l'OAuth → **API d'Instagram avec connexion Instagram**
-   (Instagram → API setup with Instagram login) → **Réglages OAuth (Business login)**.
+Puis **redeploy** (Vercel → Deployments → Redeploy) pour que les routes prennent les variables.
+
+**B. Enregistrer la redirect URI dans Meta** (app `1523515752503377`) :
+1. App Meta → **Instagram → API setup with Instagram login** → réglages OAuth (Business login).
 2. Dans **« Valid OAuth Redirect URIs »**, ajoute exactement :
    ```
-   https://blcfnifgwyjiltbffxyl.supabase.co/functions/v1/instagram-oauth/callback
+   https://reels-app-web.vercel.app/api/instagram/callback
    ```
-3. Vérifie que les **scopes** demandés incluent `instagram_business_basic` et
-   `instagram_business_manage_messages`, puis enregistre.
-4. En mode développement, ça marche tout de suite pour **ton** compte (testeur). Pour le
-   public, il faut l'App Review des scopes (comme pour le webhook).
+3. Scopes : `instagram_business_basic`, `instagram_business_manage_messages`. Enregistre.
+4. En mode dev, ça marche tout de suite pour **ton** compte (testeur). Public = App Review.
 
-> Astuce : `SITE_URL` n'est qu'un repli. L'Edge Function mémorise l'origine réelle du
-> site au lancement du flux (prod **et** preview Vercel gérés automatiquement). Côté
-> mobile, le retour se fait via le deep link `reelvault://instagram`.
+> ⚠️ Si la connexion échoue avec « Invalid platform app / client_id », c'est que
+> l'app `1523…` n'a pas « Instagram login » activé. Soit l'activer, soit basculer
+> `META_APP_ID`/`META_APP_SECRET` (Vercel) sur l'app d'InstaFlow (`1531219198527598`)
+> qui fonctionne déjà — le code est piloté par ces variables.
 
 ## 🌐 Étape 6 — Mettre le site web en ligne (Vercel)
 
