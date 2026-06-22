@@ -8,7 +8,8 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild --platform android",
     "typecheck": "tsc --noEmit",
-    "doctor": "expo-doctor"
+    "doctor": "expo-doctor",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "@reelvault/design-tokens": "*",

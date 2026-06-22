@@ -1,4 +1,5 @@
 import type { ExpoConfig, ConfigContext } from 'expo/config';
+import { withGradleProperties } from '@expo/config-plugins';
 
 /**
  * Configuration Expo de ReelVault Mobile (Android).
@@ -9,7 +10,21 @@ import type { ExpoConfig, ConfigContext } from 'expo/config';
  * architecture pour Expo SDK 51 ; la New Architecture n'est pas garantie compatible
  * avec toutes ces libs natives sur cette version. Voir README "Limites / hypothèses".
  */
-export default ({ config }: ConfigContext): ExpoConfig => ({
+const withHighMemoryGradle = (cfg: ExpoConfig): ExpoConfig =>
+  withGradleProperties(cfg, config => {
+    const props = config.modResults;
+    const key = 'org.gradle.jvmargs';
+    const value = '-Xmx4096m -XX:MaxMetaspaceSize=512m';
+    const idx = props.findIndex(p => p.type === 'property' && p.key === key);
+    if (idx !== -1) {
+      (props[idx] as { type: 'property'; key: string; value: string }).value = value;
+    } else {
+      props.push({ type: 'property', key, value });
+    }
+    return config;
+  });
+
+export default ({ config }: ConfigContext): ExpoConfig => withHighMemoryGradle({
   ...config,
   name: 'ReelVault',
   slug: 'reelvault',
