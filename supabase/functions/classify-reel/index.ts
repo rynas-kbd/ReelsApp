@@ -1,8 +1,10 @@
 // classify-reel — classe un réel par IA puis met à jour sa catégorie. Envoie un push.
 // Body: { reel_id: string }
+// Utilise les clés Gemini de l'utilisateur (rotation sur quota), avec repli sur GEMINI_API_KEY.
 import { adminClient } from '../_shared/supabase.ts';
 import { handleOptions, json } from '../_shared/cors.ts';
-import { classifyReel } from '../_shared/classify.ts';
+import { classifyWithKey, UNSORTED_CATEGORY } from '../_shared/classify.ts';
+import { getApiKeys, runWithRotation } from '../_shared/keys.ts';
 import { findOrCreateCategory } from '../_shared/reel.ts';
 
 Deno.serve(async (req) => {
@@ -27,15 +29,21 @@ Deno.serve(async (req) => {
       .eq('user_id', reel.user_id);
     const existingCategories = (cats ?? []).map((c) => c.name as string);
 
-    const result = await classifyReel({
+    const input = {
       title: reel.title,
       caption: reel.caption,
       author_username: reel.author_username,
       author_name: reel.author_name,
       existingCategories,
-    });
+    };
 
-    const categoryId = await findOrCreateCategory(supabase, reel.user_id, result.category);
+    // Rotation sur les clés Gemini de l'utilisateur (+ repli env).
+    const keys = await getApiKeys(supabase, reel.user_id, 'gemini');
+    const category =
+      (await runWithRotation(supabase, keys, (key) => classifyWithKey(input, key))) ??
+      UNSORTED_CATEGORY;
+
+    const categoryId = await findOrCreateCategory(supabase, reel.user_id, category);
 
     await supabase
       .from('reels')
@@ -53,12 +61,13 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         user_id: reel.user_id,
         title: 'Nouveau réel sauvegardé 🎬',
-        body: `Un réel a été classé dans « ${result.category} ».`,
+        body: `Un réel a été classé dans « ${category} ».`,
         data: { reel_id },
       }),
     }).catch(() => {});
 
-    return json({ ok: true, category: result.category, isNew: result.isNew, categoryId });
+    const isNew = !existingCategories.some((c) => c.toLowerCase() === category.toLowerCase());
+    return json({ ok: true, category, isNew, categoryId });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

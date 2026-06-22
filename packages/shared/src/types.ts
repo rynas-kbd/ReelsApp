@@ -60,6 +60,25 @@ export interface InstagramConnection {
   status: ConnectionStatus;
   connected_at: string | null;
   created_at: string;
+  // Jumelage du compte principal autorisé à partager des réels.
+  sender_pairing_code: string | null;
+  sender_id: string | null;
+  sender_username: string | null;
+  sender_paired_at: string | null;
+}
+
+export type ApiKeyProvider = 'gemini' | 'rapidapi';
+
+export interface UserApiKey {
+  id: string;
+  user_id: string;
+  provider: ApiKeyProvider;
+  key: string;
+  label: string | null;
+  cooldown_until: string | null;
+  last_error: string | null;
+  last_used_at: string | null;
+  created_at: string;
 }
 
 export interface ReelView {

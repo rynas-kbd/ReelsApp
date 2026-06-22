@@ -140,20 +140,47 @@ Pour capter les messages, Meta exige une validation de la permission **`instagra
 
 ---
 
-### 5.6 Activer oEmbed Read (miniatures, légendes, auteurs des réels)
-> Tu as créé une **2ᵉ app Meta dédiée** à ça — parfait, c'est la bonne approche (on ne mélange pas avec l'app messaging).
+### 5.6 Enrichissement des réels (miniatures, légendes, auteurs) — via RapidAPI
 
-1. Ouvre ta **2ᵉ app Meta** (celle de l'oEmbed) sur https://developers.facebook.com.
-2. Ajoute le produit **« oEmbed »** et active la fonctionnalité **« oEmbed Read »** (demande d'autorisation / App Review).
-3. Récupère 🔑 :
-   - **App ID** de cette app → `META_OEMBED_APP_ID`
-   - **Client Token** : *Paramètres de l'app → Avancé → Sécurité → Jeton client* → `META_OEMBED_CLIENT_TOKEN` (recommandé)
-   - *(ou, à la place du client token, l'**App Secret** → `META_OEMBED_APP_SECRET`)*
-4. Mets ces valeurs dans `supabase/.env`, puis relance :
+> ⚠️ L'oEmbed de Meta exige la validation « oEmbed Read » (App Review) et ne marchait
+> pas de façon fiable. On utilise désormais **RapidAPI (instagram120)** qui renvoie
+> directement miniature + légende + auteur + likes/commentaires, sans App Review.
+
+1. La fonction `enrich-reel` appelle l'endpoint `POST /api/instagram/links` de
+   l'API **instagram120** sur RapidAPI.
+2. Secrets nécessaires côté Supabase (déjà posés) :
+   - `RAPIDAPI_KEY` = ta clé RapidAPI
+   - `RAPIDAPI_HOST` = `instagram120.p.rapidapi.com` (défaut)
    ```bash
-   supabase secrets set --env-file supabase/.env
+   supabase secrets set RAPIDAPI_KEY=ta_cle RAPIDAPI_HOST=instagram120.p.rapidapi.com
    ```
-> Tant qu'oEmbed Read n'est pas activé/validé, les réels s'affichent avec une miniature par défaut (l'IA les classe quand même). Une fois activé, les vraies miniatures/légendes/auteurs apparaissent automatiquement.
+3. **Miniatures durables** : les URLs d'image Instagram (CDN) expirent en quelques
+   jours. `enrich-reel` télécharge la miniature et la réhéberge dans le bucket public
+   **`thumbnails`** (migration `0006_thumbnails_bucket.sql`). Pour créer ce bucket :
+   ```bash
+   supabase db push --linked
+   ```
+   > Tant que le bucket n'existe pas, l'enrichissement marche quand même mais stocke
+   > l'URL CDN (qui finira par expirer) ; après création du bucket, les miniatures
+   > sont permanentes.
+
+(L'ancienne app Meta oEmbed Read n'est plus utilisée. Les secrets `META_OEMBED_*`
+peuvent rester, ils sont ignorés.)
+
+### 5.8 Clés API personnelles (BYOK) + rotation
+
+> Chaque utilisateur peut enregistrer **ses propres clés** Gemini (classement IA) et
+> RapidAPI (enrichissement) dans **Réglages → Mes clés API**. On peut en mettre
+> **plusieurs par service** : ReelVault bascule automatiquement sur la suivante quand
+> l'une atteint son quota (rotation). Une clé en quota est mise en pause ~6 h puis
+> réessayée.
+
+- Stockage : table `user_api_keys` (migration `0007_user_api_keys.sql`, RLS = chacun
+  ne voit que ses clés). À appliquer : `supabase db push --linked`.
+- Ordre d'essai par les Edge Functions (`enrich-reel`, `classify-reel`) : clés de
+  l'utilisateur (hors pause) → clé partagée d'environnement (`GEMINI_API_KEY` /
+  `RAPIDAPI_KEY`) en repli → clés en pause en dernier recours.
+- Donc si un utilisateur n'a pas mis de clé, la clé partagée (quota limité) est utilisée.
 
 ### 5.7 Connexion du compte par bouton « Se connecter avec Instagram » (OAuth)
 
@@ -240,16 +267,27 @@ Puis **redeploy** (Vercel → Deployments → Redeploy) pour que les routes pren
 
 ## ✅ Étape 8 — Activer la capture automatique et tester
 
-1. Sur le **site web** ou **l'app**, va dans **Paramètres → Connexion Instagram**. Tu y vois un **code d'activation** (ex. `RV-AB12CD`).
-2. Depuis ton **compte Instagram secondaire**, ouvre une conversation avec la Page connectée et **envoie ce code** en message.
-3. Le statut passe à **« Connecté »** ✅.
-4. Depuis ton **compte principal**, **partage un réel** vers ton compte secondaire (via le bouton « Partager » d'Instagram).
+1. **Connecte ton compte Instagram secondaire** (celui qui reçoit les partages) :
+   site web ou app → **Paramètres → Connexion Instagram → « Se connecter avec Instagram »**
+   (OAuth, voir Étape 5.7). Le statut passe à **« Connecté »** ✅.
+2. **Relie ton compte principal** (celui depuis lequel tu partages) :
+   sous la connexion, un **code de jumelage** s'affiche (ex. `RV-A1B2C3`).
+   Depuis ton **compte principal**, envoie ce code en **message privé (DM)** à ton compte
+   connecté. ReelVault mémorise alors ton compte principal comme **seul** expéditeur autorisé.
+   Le statut « Compte principal relié » ✅ apparaît (clique « Vérifier » si besoin).
+3. **Ajoute tes clés** (classement + miniatures) : Paramètres → **Mes clés API** (voir Étape 5.8).
+   L'onboarding te guide aussi pas à pas pour les obtenir.
+4. Depuis ton **compte principal**, **partage un réel** vers ton compte connecté (bouton « Partager » d'Instagram).
 5. Quelques secondes plus tard, le réel apparaît dans ta **bibliothèque**, déjà classé dans une catégorie, et tu reçois une **notification** sur ton téléphone. 🎬
 
+> 🔒 Seuls les réels partagés depuis le **compte principal jumelé** sont capturés. Les
+> messages d'autres comptes sont ignorés.
+
 ### Vérifications rapides si ça ne marche pas
-- **Le code ne s'active pas ?** Vérifie que tu l'as envoyé depuis le bon compte, sans espace en trop.
-- **Le réel n'apparaît pas ?** Va dans Supabase → Table `webhook_events` : tu verras les messages reçus (utile pour comprendre). Vérifie que l'abonnement `messages` du webhook est bien actif.
-- **Pas de classement / mauvaise catégorie ?** Vérifie que `GEMINI_API_KEY` est bien renseignée (Étape 4).
+- **Le jumelage ne se fait pas ?** Vérifie que tu as envoyé le code depuis le **compte principal** (pas le secondaire), en DM au compte connecté, sans espace en trop. Clique « Vérifier ».
+- **Le réel n'apparaît pas ?** Va dans Supabase → Table `webhook_events` : tu verras les messages reçus. Vérifie que l'abonnement `messages` du webhook est actif, et que le réel a bien été partagé depuis le compte principal jumelé.
+- **Pas de classement / mauvaise catégorie ?** Vérifie ta **clé Gemini** (Paramètres → Mes clés API). Sans classement IA, les réels vont dans « À trier ».
+- **Pas de miniature / titre ?** Vérifie ta **clé RapidAPI** (instagram120).
 - **Tu peux toujours ajouter un réel à la main** en collant son lien dans l'app/web, ou en le partageant depuis Instagram vers ReelVault sur Android.
 
 ---

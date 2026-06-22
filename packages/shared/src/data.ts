@@ -4,11 +4,13 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
+  ApiKeyProvider,
   Category,
   InstagramConnection,
   LibraryFilters,
   Profile,
   ReelWithCategory,
+  UserApiKey,
 } from './types';
 
 const REEL_SELECT =
@@ -154,6 +156,45 @@ export async function disconnectInstagram(supabase: SupabaseClient): Promise<voi
     })
     .eq('status', 'active');
   if (error) throw error;
+}
+
+/**
+ * Clés API de l'utilisateur (BYOK). RLS garantit qu'on ne voit que les siennes.
+ * On ne renvoie pas la clé en clair (masquée) — l'app n'a besoin que de son existence.
+ */
+export async function fetchApiKeys(supabase: SupabaseClient): Promise<UserApiKey[]> {
+  const { data, error } = await supabase
+    .from('user_api_keys')
+    .select('id, user_id, provider, key, label, cooldown_until, last_error, last_used_at, created_at')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as UserApiKey[];
+}
+
+/** Ajoute une clé API pour l'utilisateur courant. */
+export async function addApiKey(
+  supabase: SupabaseClient,
+  userId: string,
+  provider: ApiKeyProvider,
+  key: string,
+  label?: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from('user_api_keys')
+    .insert({ user_id: userId, provider, key: key.trim(), label: label?.trim() || null });
+  if (error) throw error;
+}
+
+/** Supprime une clé API (RLS = uniquement les siennes). */
+export async function deleteApiKey(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from('user_api_keys').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/** Masque une clé pour l'affichage : ne montre que les derniers caractères. */
+export function maskApiKey(key: string): string {
+  if (key.length <= 6) return '••••';
+  return `${'•'.repeat(Math.min(key.length - 4, 16))}${key.slice(-4)}`;
 }
 
 /** Incrémente le compteur de vues + journalise (pour les stats). */

@@ -94,6 +94,23 @@ export const STRINGS = {
     save: 'Enregistrer',
     saved: 'Modifications enregistrées.',
   },
+  apiKeys: {
+    title: 'Mes clés API',
+    intro:
+      'Ajoute tes propres clés pour le classement IA (Gemini) et l\'enrichissement (RapidAPI). Tu peux en mettre plusieurs : ReelVault bascule automatiquement sur la suivante quand l\'une atteint son quota.',
+    gemini: 'Gemini (classement IA)',
+    geminiHelp: 'Clé Google AI Studio — https://aistudio.google.com → « Get API key ».',
+    rapidapi: 'RapidAPI (enrichissement)',
+    rapidapiHelp: 'Clé RapidAPI pour l\'API instagram120 (miniatures, légendes, auteurs).',
+    placeholder: 'Colle ta clé ici',
+    add: 'Ajouter',
+    added: 'Clé ajoutée.',
+    deleted: 'Clé supprimée.',
+    none: 'Aucune clé. La clé partagée par défaut est utilisée (quota limité).',
+    inCooldown: 'En pause (quota atteint)',
+    lastError: 'Dernière erreur',
+    deleteConfirm: 'Supprimer cette clé ?',
+  },
   instagram: {
     title: 'Connecter mon compte Instagram',
     statusPending: 'Non connecté',
@@ -112,6 +129,24 @@ export const STRINGS = {
     errorExchange: 'Impossible de finaliser la connexion Instagram. Réessaie.',
     errorConfig: 'La connexion Instagram n\'est pas encore configurée côté serveur.',
   },
+  pairing: {
+    title: 'Relier ton compte principal',
+    intro:
+      'Pour ne capturer QUE les réels que TU partages (et ignorer les autres messages), relie ton compte principal une seule fois.',
+    codeLabel: 'Ton code de jumelage',
+    copy: 'Copier le code',
+    copied: 'Code copié !',
+    steps: (igUsername: string | null) => [
+      'Ouvre Instagram sur ton COMPTE PRINCIPAL (celui depuis lequel tu partages des réels).',
+      `Envoie ce code en message privé (DM) à ton compte connecté${igUsername ? ` @${igUsername}` : ''}.`,
+      'Reviens ici : ton compte principal sera reconnu automatiquement.',
+    ],
+    paired: 'Compte principal relié',
+    pairedHelp: 'Seuls les réels partagés depuis ce compte seront ajoutés à ta bibliothèque.',
+    notPaired: 'Compte principal non relié',
+    waiting: 'En attente du code envoyé depuis ton compte principal…',
+    refresh: 'Vérifier',
+  },
   onboarding: {
     skip: 'Passer',
     next: 'Continuer',
@@ -128,6 +163,33 @@ export const STRINGS = {
       title: 'Connecte ton compte Instagram',
       subtitle: 'Relie ton compte Instagram secondaire pour capturer automatiquement les réels que tu y partages. Tu peux aussi le faire plus tard dans les Paramètres.',
       connected: 'Compte connecté 🎉',
+    },
+    pair: {
+      title: 'Relie ton compte principal',
+      subtitle:
+        'Pour ne capturer QUE les réels que TOI tu partages, envoie ce code une fois depuis ton compte principal.',
+      needConnect: 'Connecte d\'abord ton compte Instagram à l\'étape précédente.',
+    },
+    keys: {
+      title: 'Tes clés (IA & enrichissement)',
+      subtitle:
+        'ReelVault classe et enrichit tes réels grâce à 2 services gratuits. Ajoute tes clés — tu peux en mettre plusieurs (rotation automatique quand un quota est atteint).',
+      optional:
+        'Optionnel : sans clé perso, une clé partagée à quota limité est utilisée. Pour un usage confortable, mets les tiennes.',
+      geminiTitle: 'Clé Gemini — classement par IA (gratuit)',
+      geminiSteps: [
+        'Va sur aistudio.google.com et connecte-toi avec un compte Google.',
+        'Clique sur « Get API key » (ou « Obtenir une clé API »), en haut à gauche.',
+        'Clique « Create API key » → choisis/crée un projet : une clé qui commence par « AIza… » apparaît.',
+        'Copie-la et colle-la dans le champ Gemini ci-dessous. (Tu peux créer plusieurs clés pour la rotation.)',
+      ],
+      rapidTitle: 'Clé RapidAPI — miniatures, légendes & auteurs (gratuit)',
+      rapidSteps: [
+        'Crée un compte gratuit sur rapidapi.com.',
+        'Ouvre l\'API « instagram120 » (rapidapi.com → recherche « instagram120 ») et clique « Subscribe » → plan « Basic » (gratuit).',
+        'Dans l\'onglet « Endpoints », repère le header « X-RapidAPI-Key » et copie sa valeur (se termine par « …msh… »).',
+        'Colle-la dans le champ RapidAPI ci-dessous.',
+      ],
     },
     howto: {
       title: 'Comment ça marche',

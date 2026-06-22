@@ -112,18 +112,48 @@ async function handlePayload(supabase: ReturnType<typeof adminClient>, payload: 
   for (const entry of payload.entry ?? []) {
     for (const evt of entry.messaging ?? []) {
       const isEcho = evt.message?.is_echo ?? false;
-      // Le compte connecté (secondaire/business) est le destinataire des messages reçus,
-      // ou l'expéditeur des messages "echo" (envoyés par le compte connecté lui-même).
-      const businessAccountId = (isEcho ? evt.sender?.id : evt.recipient?.id) ?? entry.id;
+      // On ne traite que les messages ENTRANTS (échos = messages du compte connecté lui-même).
+      if (isEcho) continue;
+
+      // Compte connecté (secondaire/business) = destinataire ; expéditeur = compte principal.
+      const businessAccountId = evt.recipient?.id ?? entry.id;
+      const senderId = evt.sender?.id;
       const text = evt.message?.text?.trim();
 
-      // 1) Activation : le texte correspond-il à un code d'activation en attente ?
+      // 1) Jumelage du compte principal : le texte correspond-il à un code de jumelage ?
+      if (text && senderId && (await tryPairSender(supabase, text, senderId))) continue;
+
+      // 2) Activation legacy (code d'activation tapé, avant l'OAuth).
       if (text && (await tryActivate(supabase, text, businessAccountId))) continue;
 
-      // 2) Capture d'un réel partagé.
-      await tryCaptureReel(supabase, evt, businessAccountId);
+      // 3) Capture d'un réel partagé (uniquement depuis le compte principal autorisé).
+      await tryCaptureReel(supabase, evt, businessAccountId, senderId);
     }
   }
+}
+
+/**
+ * Jumelage : si le texte est le code de jumelage d'une connexion, on mémorise l'IGSID
+ * de l'expéditeur (le compte principal). Seuls ses partages seront capturés ensuite.
+ */
+async function tryPairSender(
+  supabase: ReturnType<typeof adminClient>,
+  text: string,
+  senderId: string,
+): Promise<boolean> {
+  const code = text.toUpperCase();
+  const { data: conn } = await supabase
+    .from('instagram_connections')
+    .select('id')
+    .eq('sender_pairing_code', code)
+    .maybeSingle();
+  if (!conn) return false;
+
+  await supabase
+    .from('instagram_connections')
+    .update({ sender_id: senderId, sender_paired_at: new Date().toISOString() })
+    .eq('id', conn.id);
+  return true;
 }
 
 async function tryActivate(
@@ -154,17 +184,21 @@ async function tryCaptureReel(
   supabase: ReturnType<typeof adminClient>,
   evt: MessagingEvent,
   businessAccountId?: string,
+  senderId?: string,
 ) {
   if (!businessAccountId) return;
 
   // Trouve l'utilisateur ReelVault propriétaire du compte connecté.
   const { data: conn } = await supabase
     .from('instagram_connections')
-    .select('user_id, status')
+    .select('user_id, status, sender_id')
     .eq('ig_account_id', businessAccountId)
     .eq('status', 'active')
     .maybeSingle();
   if (!conn) return;
+
+  // Si un compte principal est jumelé, on n'accepte QUE ses partages.
+  if (conn.sender_id && senderId && conn.sender_id !== senderId) return;
 
   // Récupère les liens IG depuis les attachments + le texte du message.
   const candidates: string[] = [];

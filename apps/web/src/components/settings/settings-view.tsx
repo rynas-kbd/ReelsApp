@@ -22,6 +22,8 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { reelsToCsv, downloadBlob } from '@/lib/export';
+import { ApiKeysCard } from '@/components/settings/api-keys-card';
+import { InstagramPairing } from '@/components/settings/instagram-pairing';
 
 export function SettingsView({ userId }: { userId: string }) {
   const supabase = useMemo(() => createClient(), []);
@@ -206,23 +208,28 @@ export function SettingsView({ userId }: { userId: string }) {
         </CardHeader>
         <CardContent className="space-y-4">
           {status === 'active' ? (
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-text-secondary">
-                {STRINGS.instagram.connectedAs}{' '}
-                <span className="font-medium text-text">
-                  @{connection?.ig_username ?? '—'}
-                </span>
-              </p>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={disconnecting}
-                onClick={disconnect}
-              >
-                {disconnecting ? <Loader2 className="animate-spin" /> : <LogOut />}
-                {STRINGS.instagram.disconnect}
-              </Button>
-            </div>
+            <>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-text-secondary">
+                  {STRINGS.instagram.connectedAs}{' '}
+                  <span className="font-medium text-text">
+                    @{connection?.ig_username ?? '—'}
+                  </span>
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={disconnecting}
+                  onClick={disconnect}
+                >
+                  {disconnecting ? <Loader2 className="animate-spin" /> : <LogOut />}
+                  {STRINGS.instagram.disconnect}
+                </Button>
+              </div>
+              {connection && (
+                <InstagramPairing connection={connection} onChange={setConnection} />
+              )}
+            </>
           ) : (
             <>
               <p className="text-sm text-text-secondary">{STRINGS.instagram.intro}</p>
@@ -234,6 +241,9 @@ export function SettingsView({ userId }: { userId: string }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Clés API (BYOK + rotation) */}
+      <ApiKeysCard userId={userId} />
 
       {/* Préférences */}
       <Card>

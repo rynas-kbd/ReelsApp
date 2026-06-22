@@ -1,4 +1,8 @@
-// Récupère les métadonnées d'un réel via l'oEmbed officiel de Meta, avec fallback.
+// Récupère les métadonnées d'un réel via RapidAPI (instagram120) et réhéberge la miniature.
+// `fetchReelMetadata` fait UN appel avec UNE clé RapidAPI et signale les quotas (429)
+// pour permettre la rotation côté appelant (voir _shared/keys.ts).
+import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import type { Attempt } from './keys.ts';
 import { reelUrl } from './reel.ts';
 
 export interface ReelMetadata {
@@ -9,55 +13,88 @@ export interface ReelMetadata {
   raw: Record<string, unknown> | null;
 }
 
-const GRAPH_VERSION = 'v19.0';
-const PLACEHOLDER = 'https://placehold.co/640x800/16161D/7C3AED/png?text=Reel';
+export const PLACEHOLDER_THUMB = 'https://placehold.co/640x800/16161D/7C3AED/png?text=Reel';
+const THUMBNAILS_BUCKET = 'thumbnails';
 
 /**
- * oEmbed Instagram via Graph API.
- *
- * Identifiants DÉDIÉS à l'app oEmbed Read (séparée de l'app messaging/webhook) :
- *   - META_OEMBED_APP_ID        (obligatoire)
- *   - META_OEMBED_CLIENT_TOKEN  (recommandé pour oEmbed Read)  → token = `${appId}|${clientToken}`
- *   - META_OEMBED_APP_SECRET    (alternative au client token)  → token = `${appId}|${appSecret}`
- *
- * À défaut, on retombe sur l'app principale (META_APP_ID / META_APP_SECRET).
- * L'app doit avoir la fonctionnalité « oEmbed Read » activée (validée par Meta).
+ * Métadonnées d'un réel via RapidAPI instagram120 (endpoint `/api/instagram/links`).
+ * La miniature CDN d'Instagram expire : on la télécharge et on la réhéberge dans le
+ * bucket public `thumbnails` pour une URL durable.
  */
-export async function fetchReelMetadata(shortcode: string): Promise<ReelMetadata> {
+export async function fetchReelMetadata(
+  shortcode: string,
+  supabase: SupabaseClient,
+  apiKey: string,
+): Promise<Attempt<ReelMetadata>> {
   const url = reelUrl(shortcode);
-  const appId = Deno.env.get('META_OEMBED_APP_ID') ?? Deno.env.get('META_APP_ID');
-  const clientToken = Deno.env.get('META_OEMBED_CLIENT_TOKEN');
-  const appSecret = Deno.env.get('META_OEMBED_APP_SECRET') ?? Deno.env.get('META_APP_SECRET');
-  const secretPart = clientToken ?? appSecret;
-
-  const fallback: ReelMetadata = {
-    thumbnail_url: PLACEHOLDER,
-    title: null,
-    author_username: null,
-    author_name: null,
-    raw: null,
-  };
-
-  if (!appId || !secretPart) return fallback;
+  const host = Deno.env.get('RAPIDAPI_HOST') ?? 'instagram120.p.rapidapi.com';
 
   try {
-    const accessToken = `${appId}|${secretPart}`;
-    const endpoint =
-      `https://graph.facebook.com/${GRAPH_VERSION}/instagram_oembed` +
-      `?url=${encodeURIComponent(url)}&omitscript=true&access_token=${accessToken}`;
+    const res = await fetch(`https://${host}/api/instagram/links`, {
+      method: 'POST',
+      headers: {
+        'x-rapidapi-key': apiKey,
+        'x-rapidapi-host': host,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url }),
+    });
 
-    const res = await fetch(endpoint);
-    if (!res.ok) return fallback;
-    const data = await res.json() as Record<string, unknown>;
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      return { ok: false, quota: res.status === 429, error: `HTTP ${res.status} ${body.slice(0, 200)}` };
+    }
+
+    const data = await res.json();
+    const item = Array.isArray(data) ? data[0] : data;
+    if (!item) return { ok: false, error: 'réponse vide' };
+
+    const meta = (item.meta ?? {}) as Record<string, unknown>;
+    const pictureUrl = (item.pictureUrl as string) ?? null;
+    const username = (meta.username as string) ?? null;
+    const stored = await storeThumbnail(supabase, shortcode, pictureUrl);
 
     return {
-      thumbnail_url: (data.thumbnail_url as string) ?? PLACEHOLDER,
-      title: (data.title as string) ?? null,
-      author_username: (data.author_name as string) ?? null,
-      author_name: (data.author_name as string) ?? null,
-      raw: data,
+      ok: true,
+      value: {
+        thumbnail_url: stored ?? pictureUrl ?? PLACEHOLDER_THUMB,
+        title: (meta.title as string) ?? null,
+        author_username: username,
+        author_name: username,
+        raw: {
+          likeCount: meta.likeCount ?? null,
+          commentCount: meta.commentCount ?? null,
+          takenAt: meta.takenAt ?? null,
+          videoUrl: (item.urls as Array<{ url?: string }>)?.[0]?.url ?? null,
+        },
+      },
     };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+/** Télécharge l'image Instagram et la réhéberge dans le bucket public, renvoie l'URL durable. */
+async function storeThumbnail(
+  supabase: SupabaseClient,
+  shortcode: string,
+  pictureUrl: string | null,
+): Promise<string | null> {
+  if (!pictureUrl) return null;
+  try {
+    const img = await fetch(pictureUrl);
+    if (!img.ok) return null;
+    const bytes = new Uint8Array(await img.arrayBuffer());
+    const path = `${shortcode}.jpg`;
+
+    const { error } = await supabase.storage
+      .from(THUMBNAILS_BUCKET)
+      .upload(path, bytes, { contentType: 'image/jpeg', upsert: true });
+    if (error) return null;
+
+    const { data } = supabase.storage.from(THUMBNAILS_BUCKET).getPublicUrl(path);
+    return data.publicUrl ?? null;
   } catch (_e) {
-    return fallback;
+    return null;
   }
 }

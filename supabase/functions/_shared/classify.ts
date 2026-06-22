@@ -1,7 +1,12 @@
 // Classification d'un réel par IA — Google Gemini (free tier, AI Studio).
-// Renvoie le nom d'une catégorie : soit une existante, soit une nouvelle proposée par l'IA.
+// `classifyWithKey` fait UN appel avec UNE clé et signale les quotas (429) pour
+// permettre la rotation côté appelant (voir _shared/keys.ts).
+import type { Attempt } from './keys.ts';
 
-const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash';
+// Catégorie neutre quand l'IA est indisponible : NE PAS retomber sur la 1re catégorie
+// existante (sinon tout finit dans « Sport & Fitness »).
+export const UNSORTED_CATEGORY = 'À trier';
 
 export interface ClassifyInput {
   title?: string | null;
@@ -11,23 +16,12 @@ export interface ClassifyInput {
   existingCategories: string[];
 }
 
-export interface ClassifyResult {
-  category: string;
-  isNew: boolean;
-}
-
-/**
- * Demande à Gemini de ranger le réel dans une catégorie existante,
- * ou d'en proposer une nouvelle (concise, format « Thème & Sous-thème »).
- * Fallback : 'Humour & Divertissement' si l'IA est indisponible.
- */
-export async function classifyReel(input: ClassifyInput): Promise<ClassifyResult> {
-  const apiKey = Deno.env.get('GEMINI_API_KEY');
-  const fallbackCategory = input.existingCategories[0] ?? 'Humour & Divertissement';
-  if (!apiKey) return { category: fallbackCategory, isNew: false };
-
+/** Un appel Gemini avec une clé donnée. `quota:true` → l'appelant essaie la clé suivante. */
+export async function classifyWithKey(
+  input: ClassifyInput,
+  apiKey: string,
+): Promise<Attempt<string>> {
   const prompt = buildPrompt(input);
-
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
@@ -36,48 +30,65 @@ export async function classifyReel(input: ClassifyInput): Promise<ClassifyResult
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
+          generationConfig: {
+            temperature: 0.2,
+            responseMimeType: 'application/json',
+            // Désactive le « thinking » de Gemini 2.5 : tâche simple → plus rapide et moins coûteux.
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         }),
       },
     );
 
-    if (!res.ok) return { category: fallbackCategory, isNew: false };
-    const data = await res.json();
-    const text: string =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
-    const parsed = JSON.parse(text) as { category?: string };
-    const category = (parsed.category ?? '').trim();
-    if (!category) return { category: fallbackCategory, isNew: false };
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      return { ok: false, quota: res.status === 429, error: `HTTP ${res.status} ${body.slice(0, 200)}` };
+    }
 
-    const isNew = !input.existingCategories.some(
-      (c) => c.toLowerCase() === category.toLowerCase(),
-    );
-    return { category, isNew };
-  } catch (_e) {
-    return { category: fallbackCategory, isNew: false };
+    const data = await res.json();
+    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
+    const parsed = JSON.parse(stripFences(text)) as { category?: string };
+    const category = (parsed.category ?? '').trim();
+    if (!category) return { ok: false, error: 'réponse vide' };
+    return { ok: true, value: category };
+  } catch (e) {
+    return { ok: false, error: String(e) };
   }
+}
+
+/** Retire d'éventuelles balises ```json ... ``` autour de la réponse. */
+function stripFences(text: string): string {
+  return text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
 }
 
 function buildPrompt(input: ClassifyInput): string {
   const ctx = [
-    input.title ? `Titre: ${input.title}` : null,
-    input.caption ? `Légende: ${input.caption}` : null,
+    input.title ? `Titre / légende: ${input.title}` : null,
+    input.caption ? `Description: ${input.caption}` : null,
     input.author_username ? `Compte: @${input.author_username}` : null,
-    input.author_name ? `Nom: ${input.author_name}` : null,
+    input.author_name ? `Nom de l'auteur: ${input.author_name}` : null,
   ]
     .filter(Boolean)
     .join('\n');
 
-  return `Tu es un assistant qui classe des réels Instagram par thème, en français.
+  const catList = input.existingCategories.length
+    ? input.existingCategories.map((c) => `- ${c}`).join('\n')
+    : '(aucune pour l\'instant)';
 
-Catégories existantes :
-${input.existingCategories.map((c) => `- ${c}`).join('\n')}
+  return `Tu es un assistant qui range des réels Instagram dans des catégories thématiques, en français.
+
+Catégories déjà existantes de l'utilisateur :
+${catList}
 
 Réel à classer :
-${ctx || '(peu d\'informations disponibles)'}
+${ctx || '(très peu d\'informations disponibles)'}
 
-Consigne :
-- Choisis la catégorie EXISTANTE la plus pertinente si elle convient.
-- Sinon, propose UNE nouvelle catégorie courte au format « Thème & Sous-thème » (ex: « Finance & Crypto »).
-- Réponds STRICTEMENT en JSON : {"category": "<nom exact de la catégorie>"}.`;
+Règles :
+1. Analyse le SUJET réel du contenu (jeu vidéo, sport, cuisine, humour, tech, voyage, etc.).
+2. Si UNE des catégories existantes correspond clairement au sujet, réutilise-la EXACTEMENT (même orthographe).
+3. Sinon, CRÉE une nouvelle catégorie courte et claire au format « Thème & Sous-thème » (ex : « Jeux Vidéo & Esports », « Finance & Crypto »). Ne force jamais un réel dans une catégorie qui ne correspond pas.
+4. Une seule catégorie. Pas de doublon sémantique avec une catégorie existante (ex : ne crée pas « Gaming » si « Jeux Vidéo » existe déjà).
+5. Si vraiment aucune information exploitable, réponds « À trier ».
+
+Réponds STRICTEMENT en JSON, sans texte autour : {"category": "<nom exact de la catégorie>"}`;
 }

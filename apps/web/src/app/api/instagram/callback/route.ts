@@ -50,6 +50,15 @@ export async function GET(request: Request) {
     const igUser = await getInstagramUserInfo(accessToken);
     const igAccountId = igUser.user_id ?? igUser.id;
 
+    // Une ligne existe déjà (créée à l'inscription) : on la met à jour, sinon insert.
+    const { data: existing } = await admin
+      .from('instagram_connections')
+      .select('id, sender_pairing_code')
+      .eq('user_id', row.user_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     const patch = {
       ig_account_id: igAccountId,
       ig_username: igUser.username ?? null,
@@ -57,16 +66,9 @@ export async function GET(request: Request) {
       token_expires_at: expiresAt,
       status: 'active' as const,
       connected_at: new Date().toISOString(),
+      // Code à envoyer depuis le compte principal pour l'autoriser (généré une fois).
+      sender_pairing_code: existing?.sender_pairing_code ?? generatePairingCode(),
     };
-
-    // Une ligne existe déjà (créée à l'inscription) : on la met à jour, sinon insert.
-    const { data: existing } = await admin
-      .from('instagram_connections')
-      .select('id')
-      .eq('user_id', row.user_id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
 
     if (existing) {
       await admin.from('instagram_connections').update(patch).eq('id', existing.id);
@@ -82,6 +84,11 @@ export async function GET(request: Request) {
     console.error('[IG callback]', e);
     return done('exchange');
   }
+}
+
+/** Code court de jumelage du compte principal (ex : RV-A1B2C3). */
+function generatePairingCode(): string {
+  return `RV-${crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()}`;
 }
 
 function redirectBack(

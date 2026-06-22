@@ -1,8 +1,10 @@
 // enrich-reel — récupère miniature/titre/auteur d'un réel et met à jour la ligne.
 // Body: { reel_id: string }
+// Utilise les clés RapidAPI de l'utilisateur (rotation sur quota), avec repli sur RAPIDAPI_KEY.
 import { adminClient } from '../_shared/supabase.ts';
 import { handleOptions, json } from '../_shared/cors.ts';
-import { fetchReelMetadata } from '../_shared/enrich.ts';
+import { fetchReelMetadata, PLACEHOLDER_THUMB, type ReelMetadata } from '../_shared/enrich.ts';
+import { getApiKeys, runWithRotation } from '../_shared/keys.ts';
 import { extractShortcode } from '../_shared/reel.ts';
 
 Deno.serve(async (req) => {
@@ -16,7 +18,7 @@ Deno.serve(async (req) => {
     const supabase = adminClient();
     const { data: reel, error } = await supabase
       .from('reels')
-      .select('id, ig_url, shortcode')
+      .select('id, user_id, ig_url, shortcode')
       .eq('id', reel_id)
       .single();
     if (error || !reel) return json({ error: 'réel introuvable' }, 404);
@@ -24,7 +26,20 @@ Deno.serve(async (req) => {
     const shortcode = reel.shortcode ?? extractShortcode(reel.ig_url);
     if (!shortcode) return json({ error: 'shortcode introuvable' }, 422);
 
-    const meta = await fetchReelMetadata(shortcode);
+    // Rotation sur les clés RapidAPI de l'utilisateur (+ repli env).
+    const keys = await getApiKeys(supabase, reel.user_id, 'rapidapi');
+    const meta: ReelMetadata | null = await runWithRotation(supabase, keys, (key) =>
+      fetchReelMetadata(shortcode, supabase, key),
+    );
+
+    if (!meta) {
+      // Aucune clé n'a fonctionné : on garde au moins le shortcode + placeholder.
+      await supabase
+        .from('reels')
+        .update({ shortcode, thumbnail_url: PLACEHOLDER_THUMB, status: 'enriched' })
+        .eq('id', reel_id);
+      return json({ ok: true, meta: null, note: 'aucune clé RapidAPI disponible' });
+    }
 
     await supabase
       .from('reels')

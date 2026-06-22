@@ -26,8 +26,7 @@ export default async function OnboardingPage({
   return (
     <OnboardingWizard
       userId={user.id}
-      igConnected={connection?.status === 'active'}
-      igUsername={connection?.ig_username ?? null}
+      connection={connection}
       igResult={ig ?? null}
     />
   );
