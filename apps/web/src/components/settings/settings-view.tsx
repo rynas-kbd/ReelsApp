@@ -103,7 +103,10 @@ export function SettingsView({ userId }: { userId: string }) {
 
   function connectInstagram() {
     setConnecting(true);
-    window.location.href = '/api/instagram/connect?next=/settings';
+    // Ouvre le flux OAuth dans un nouvel onglet (le retour ?ig=… s'affichera là-bas).
+    window.open('/api/instagram/connect?next=/settings', '_blank', 'noopener,noreferrer');
+    // L'authentification se poursuit dans le nouvel onglet : on réactive le bouton ici.
+    setTimeout(() => setConnecting(false), 1500);
   }
 
   async function disconnect() {

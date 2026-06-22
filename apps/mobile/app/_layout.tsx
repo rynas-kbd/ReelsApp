@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -12,26 +12,44 @@ import { usePendingShare } from '../hooks/usePendingShare';
 import { ensureAndroidChannel } from '../lib/notifications';
 import { widgetTaskHandler } from '../widgets/widget-task-handler';
 import { colors } from '../lib/theme';
-import { STRINGS } from '@reelvault/shared';
+import { STRINGS, fetchProfile } from '@reelvault/shared';
+import { supabase } from '../lib/supabase';
 
 // Enregistre la tâche du widget une seule fois au chargement du bundle (hors composant).
 registerWidgetTaskHandler(widgetTaskHandler);
 
 function RootNavigator() {
-  const { session, loading } = useAuth();
+  const { session, userId, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const [onboardChecked, setOnboardChecked] = useState(false);
 
-  // Redirection selon l'état d'authentification.
+  // Redirection selon l'état d'authentification puis onboarding.
   useEffect(() => {
     if (loading) return;
     const inAuthGroup = segments[0] === '(auth)';
+    const inOnboarding = segments[0] === 'onboarding';
+
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/login');
-    } else if (session && inAuthGroup) {
-      router.replace('/(tabs)/library');
+      return;
     }
-  }, [session, loading, segments, router]);
+    if (session && inAuthGroup) {
+      // L'onboarding sera vérifié après (effet suivant).
+      router.replace('/(tabs)/library');
+      return;
+    }
+
+    // Vérification onboarding (une seule fois après login).
+    if (session && userId && !onboardChecked && !inOnboarding && !inAuthGroup) {
+      setOnboardChecked(true);
+      fetchProfile(supabase, userId).then((profile) => {
+        if (profile && !profile.onboarded) {
+          router.replace('/onboarding');
+        }
+      }).catch(() => {/* silencieux */});
+    }
+  }, [session, userId, loading, segments, router, onboardChecked]);
 
   if (loading) {
     return (
@@ -54,10 +72,15 @@ function GlobalEffects() {
     void ensureAndroidChannel();
   }, []);
 
-  // Tap sur une notification → ouvre la bibliothèque.
+  // Tap sur une notification → ouvre la bibliothèque ou le digest.
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener(() => {
-      router.push('/(tabs)/library');
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const screen = response.notification.request.content.data?.screen;
+      if (screen === 'digest') {
+        router.push('/(tabs)/digest');
+      } else {
+        router.push('/(tabs)/library');
+      }
     });
     return () => sub.remove();
   }, [router]);

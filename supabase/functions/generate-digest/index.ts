@@ -19,10 +19,24 @@ Deno.serve(async (req) => {
       cron?: boolean;
     };
 
+    // Dérivation de l'utilisateur depuis le JWT (appels mobiles via supabase.functions.invoke).
+    // Si le token n'est pas la clé service-role, on extrait l'identité depuis le JWT.
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const token = authHeader.replace('Bearer ', '').trim();
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    let selfUserId: string | null = null;
+    if (token && token !== serviceKey) {
+      const { data } = await supabase.auth.getUser(token);
+      selfUserId = data.user?.id ?? null;
+    }
+
     const userIds: string[] = [];
 
-    if (body.user_id) {
-      // Mode unitaire : un seul utilisateur.
+    if (selfUserId) {
+      // Appel authentifié depuis le mobile : générer uniquement pour cet utilisateur.
+      userIds.push(selfUserId);
+    } else if (body.user_id) {
+      // Mode unitaire via route Next (service-role) : un seul utilisateur.
       userIds.push(body.user_id);
     } else {
       // Mode batch : tous les utilisateurs « dus » (fréquence active + période écoulée).

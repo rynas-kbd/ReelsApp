@@ -23,6 +23,9 @@ import {
 } from '@reelvault/shared';
 import { Screen, GradientHeader, SectionLabel } from '../../components/Screen';
 import { GradientButton, OutlineButton } from '../../components/GradientButton';
+import { ProfileForm } from '../../components/secondbrain/ProfileForm';
+import { ApiKeysManager } from '../../components/secondbrain/ApiKeysManager';
+import { InstagramPairing } from '../../components/secondbrain/InstagramPairing';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
@@ -239,6 +242,37 @@ export default function SettingsScreen() {
             </>
           )}
         </View>
+
+        {/* Second Brain — profil */}
+        <SectionLabel>{STRINGS.settings.profileTitle}</SectionLabel>
+        <View style={styles.card}>
+          <Text style={styles.label}>{STRINGS.settings.profileSubtitle}</Text>
+          {userId && (
+            <ProfileForm
+              userId={userId}
+              profile={profile}
+              onSaved={(patch) => setProfile((p) => (p ? { ...p, ...patch } : p))}
+            />
+          )}
+        </View>
+
+        {/* Clés API */}
+        <SectionLabel>{STRINGS.apiKeys.title}</SectionLabel>
+        <View style={styles.card}>
+          <Text style={styles.label}>{STRINGS.apiKeys.intro}</Text>
+          {userId && <ApiKeysManager userId={userId} />}
+        </View>
+
+        {/* Jumelage Instagram */}
+        {connection?.status === 'active' && (
+          <>
+            <SectionLabel>{STRINGS.pairing.title}</SectionLabel>
+            <InstagramPairing
+              connection={connection}
+              onChange={(c) => setConnection(c)}
+            />
+          </>
+        )}
 
         {/* Déconnexion */}
         <Pressable style={styles.logout} onPress={signOut}>
