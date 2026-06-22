@@ -115,6 +115,9 @@ export const STRINGS = {
     digestTitle: 'Sélection personnalisée',
     digestFrequencyLabel: 'Fréquence de ta sélection IA',
     digestFrequencySaved: 'Fréquence mise à jour.',
+    profileTitle: 'Mon profil Second Brain',
+    profileSubtitle: 'Ces réponses personnalisent ta sélection IA. Tu peux les modifier à tout moment.',
+    profileSaved: 'Profil enregistré.',
   },
   apiKeys: {
     title: 'Mes clés API',
