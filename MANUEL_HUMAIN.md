@@ -190,13 +190,13 @@ peuvent rester, ils sont ignorés.)
 > `/api/instagram/callback`), sur le domaine de l'app (pattern éprouvé). Une seule
 > redirect_uri sert le web **et** le mobile (retour mobile via deep link `reelvault://instagram`).
 
-**A. Variables d'environnement à poser sur Vercel** (projet `reels-app-web` → Settings → Environment Variables) :
+**A. Variables d'environnement à poser sur Vercel** (projet `reels-web-app` → Settings → Environment Variables) :
 | Variable | Valeur |
 |---|---|
 | `META_APP_ID` | `1523515752503377` |
 | `META_APP_SECRET` | (App Secret de l'app Meta de ReelVault) |
 | `NEXT_PUBLIC_META_APP_ID` | `1523515752503377` |
-| `NEXT_PUBLIC_SITE_URL` | `https://reels-app-web.vercel.app` |
+| `NEXT_PUBLIC_SITE_URL` | `https://reels-web-app.vercel.app` |
 | `SUPABASE_SERVICE_ROLE_KEY` | (clé service_role du projet Supabase) |
 
 Puis **redeploy** (Vercel → Deployments → Redeploy) pour que les routes prennent les variables.
@@ -205,7 +205,7 @@ Puis **redeploy** (Vercel → Deployments → Redeploy) pour que les routes pren
 1. App Meta → **Instagram → API setup with Instagram login** → réglages OAuth (Business login).
 2. Dans **« Valid OAuth Redirect URIs »**, ajoute exactement :
    ```
-   https://reels-app-web.vercel.app/api/instagram/callback
+   https://reels-web-app.vercel.app/api/instagram/callback
    ```
 3. Scopes : `instagram_business_basic`, `instagram_business_manage_messages`. Enregistre.
 4. En mode dev, ça marche tout de suite pour **ton** compte (testeur). Public = App Review.
