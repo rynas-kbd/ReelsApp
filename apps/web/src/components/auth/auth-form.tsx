@@ -59,7 +59,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
     >
       <Card className="shadow-glow">
         <CardContent className="p-6">
-          <h1 className="mb-6 text-xl font-semibold text-text">
+          <h1 className="mb-6 font-display text-2xl font-bold tracking-tight text-text">
             {isLogin ? STRINGS.auth.loginTitle : STRINGS.auth.signupTitle}
           </h1>
 

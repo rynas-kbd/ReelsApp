@@ -13,7 +13,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="mb-5 text-2xl font-bold tracking-tight text-text">
+      <h1 className="mb-5 font-display text-2xl font-bold tracking-tight text-text sm:text-3xl">
         {STRINGS.settings.title}
       </h1>
       <SettingsView userId={user.id} />

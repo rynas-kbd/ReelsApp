@@ -158,7 +158,7 @@ export function LibraryView() {
       <div className="min-w-0 flex-1">
         <div className="mb-5 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-text">
+            <h1 className="font-display text-2xl font-bold tracking-tight text-text sm:text-3xl">
               {STRINGS.library.title}
             </h1>
             <AddReelDialog
@@ -238,9 +238,9 @@ export function LibraryView() {
           )
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {reels.map((reel) => (
-                <ReelCard key={reel.id} reel={reel} onOpen={openReel} />
+            <div className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-4 xl:columns-5">
+              {reels.map((reel, i) => (
+                <ReelCard key={reel.id} reel={reel} index={i} onOpen={openReel} />
               ))}
             </div>
 

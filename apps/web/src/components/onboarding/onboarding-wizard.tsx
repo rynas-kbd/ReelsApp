@@ -85,8 +85,7 @@ export function OnboardingWizard({
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full blur-[120px]"
-        style={{ background: 'rgba(217, 70, 239, 0.18)' }}
+        className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-brand-to/20 blur-[120px]"
       />
 
       <div className="relative z-10 w-full max-w-lg">
@@ -109,7 +108,7 @@ export function OnboardingWizard({
         <div className="rounded-2xl border border-border-subtle bg-surface p-8 shadow-xl">
           {step === 'welcome' && (
             <div className="flex flex-col items-center text-center">
-              <h1 className="text-2xl font-bold text-text">{STRINGS.onboarding.welcome.title}</h1>
+              <h1 className="font-display text-2xl font-bold text-text">{STRINGS.onboarding.welcome.title}</h1>
               <p className="mt-3 text-sm text-text-secondary">
                 {STRINGS.onboarding.welcome.subtitle}
               </p>
@@ -124,7 +123,7 @@ export function OnboardingWizard({
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/15">
                 <Instagram className="h-7 w-7 text-accent" />
               </div>
-              <h1 className="mt-4 text-2xl font-bold text-text">
+              <h1 className="mt-4 font-display text-2xl font-bold text-text">
                 {STRINGS.onboarding.connect.title}
               </h1>
               <p className="mt-3 text-sm text-text-secondary">
@@ -163,7 +162,7 @@ export function OnboardingWizard({
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/15">
                   <UserCheck className="h-7 w-7 text-accent" />
                 </div>
-                <h1 className="mt-4 text-2xl font-bold text-text">
+                <h1 className="mt-4 font-display text-2xl font-bold text-text">
                   {STRINGS.onboarding.pair.title}
                 </h1>
                 <p className="mt-3 text-sm text-text-secondary">
@@ -196,7 +195,7 @@ export function OnboardingWizard({
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/15">
                   <KeyRound className="h-7 w-7 text-accent" />
                 </div>
-                <h1 className="mt-4 text-2xl font-bold text-text">
+                <h1 className="mt-4 font-display text-2xl font-bold text-text">
                   {STRINGS.onboarding.keys.title}
                 </h1>
                 <p className="mt-3 text-sm text-text-secondary">
@@ -229,7 +228,7 @@ export function OnboardingWizard({
           {step === 'howto' && (
             <div className="flex flex-col">
               <div className="text-center">
-                <h1 className="text-2xl font-bold text-text">{STRINGS.onboarding.howto.title}</h1>
+                <h1 className="font-display text-2xl font-bold text-text">{STRINGS.onboarding.howto.title}</h1>
                 <p className="mt-3 text-sm text-text-secondary">
                   {STRINGS.onboarding.howto.subtitle}
                 </p>
@@ -262,7 +261,7 @@ export function OnboardingWizard({
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-success/15">
                 <FolderTree className="h-7 w-7 text-success" />
               </div>
-              <h1 className="mt-4 text-2xl font-bold text-text">{STRINGS.onboarding.done.title}</h1>
+              <h1 className="mt-4 font-display text-2xl font-bold text-text">{STRINGS.onboarding.done.title}</h1>
               <p className="mt-3 text-sm text-text-secondary">{STRINGS.onboarding.done.subtitle}</p>
               <Button className="mt-8 w-full" onClick={finish} disabled={finishing}>
                 {finishing && <Loader2 className="animate-spin" />}

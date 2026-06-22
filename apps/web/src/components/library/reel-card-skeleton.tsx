@@ -1,9 +1,11 @@
 import { Skeleton } from '@/components/ui/skeleton';
 
-export function ReelCardSkeleton() {
+const ASPECTS = ['aspect-[4/5]', 'aspect-[4/5]', 'aspect-[1/1]', 'aspect-[4/6]', 'aspect-[4/5]'];
+
+export function ReelCardSkeleton({ index = 0 }: { index?: number }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface shadow-card">
-      <Skeleton className="aspect-[4/5] w-full rounded-none" />
+    <div className="mb-3 block break-inside-avoid overflow-hidden rounded-2xl border border-border-subtle bg-surface shadow-soft sm:mb-4">
+      <Skeleton className={`w-full rounded-none ${ASPECTS[index % ASPECTS.length]}`} />
       <div className="space-y-2 p-3.5">
         <Skeleton className="h-4 w-4/5" />
         <Skeleton className="h-3 w-1/3" />
@@ -13,11 +15,11 @@ export function ReelCardSkeleton() {
   );
 }
 
-export function ReelGridSkeleton({ count = 8 }: { count?: number }) {
+export function ReelGridSkeleton({ count = 10 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-4 xl:columns-5">
       {Array.from({ length: count }).map((_, i) => (
-        <ReelCardSkeleton key={i} />
+        <ReelCardSkeleton key={i} index={i} />
       ))}
     </div>
   );

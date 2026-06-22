@@ -41,20 +41,26 @@ export function CategorySidebar({
           <button
             key={cat.id}
             onClick={() => onSelect(cat.id)}
+            style={
+              active
+                ? { backgroundColor: `${cat.color}1f`, color: cat.color }
+                : undefined
+            }
             className={cn(
               'flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
-              active
-                ? 'bg-accent-soft text-text'
-                : 'text-text-secondary hover:bg-surface-2 hover:text-text',
+              !active && 'text-text-secondary hover:bg-surface-2 hover:text-text',
             )}
           >
             <span
               className="flex h-2.5 w-2.5 shrink-0 rounded-full"
               style={{ backgroundColor: cat.color }}
             />
-            <CategoryIcon icon={cat.icon} className="h-4 w-4 text-text-muted" />
+            <CategoryIcon
+              icon={cat.icon}
+              className={cn('h-4 w-4', !active && 'text-text-muted')}
+            />
             <span className="flex-1 truncate text-left">{cat.name}</span>
-            <span className="text-xs text-text-muted">{count}</span>
+            <span className={cn('text-xs', !active && 'text-text-muted')}>{count}</span>
           </button>
         );
       })}

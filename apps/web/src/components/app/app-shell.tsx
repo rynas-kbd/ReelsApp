@@ -4,13 +4,20 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Menu, Search } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { STRINGS } from '@reelvault/shared';
 import { Logo } from '@/components/brand/logo';
 import { NavLinks } from '@/components/app/nav-links';
 import { UserMenu } from '@/components/app/user-menu';
+import { ThemeToggle } from '@/components/app/theme-toggle';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 
 export function AppShell({
   email,
@@ -36,15 +43,22 @@ export function AppShell({
       {/* Topbar */}
       <header className="sticky top-0 z-40 border-b border-border-subtle bg-bg/80 backdrop-blur-xl">
         <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden"
-            onClick={() => setDrawerOpen(true)}
-            aria-label="Ouvrir le menu"
-          >
-            <Menu />
-          </Button>
+          <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Ouvrir le menu">
+                <Menu />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0">
+              <SheetHeader>
+                <SheetTitle className="sr-only">Navigation</SheetTitle>
+                <Logo />
+              </SheetHeader>
+              <div className="px-4 pb-4">
+                <NavLinks onNavigate={() => setDrawerOpen(false)} />
+              </div>
+            </SheetContent>
+          </Sheet>
 
           <Link href="/library" className="shrink-0">
             <Logo />
@@ -62,7 +76,8 @@ export function AppShell({
             </div>
           </form>
 
-          <div className="ml-auto md:ml-0">
+          <div className="ml-auto flex items-center gap-1.5 md:ml-0">
+            <ThemeToggle />
             <UserMenu email={email} displayName={displayName} />
           </div>
         </div>
@@ -73,33 +88,6 @@ export function AppShell({
         <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-60 shrink-0 border-r border-border-subtle p-4 lg:block">
           <NavLinks />
         </aside>
-
-        {/* Drawer mobile */}
-        <AnimatePresence>
-          {drawerOpen && (
-            <>
-              <motion.div
-                className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setDrawerOpen(false)}
-              />
-              <motion.aside
-                className="fixed left-0 top-0 z-50 h-full w-72 border-r border-border-subtle bg-surface p-4 lg:hidden"
-                initial={{ x: '-100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '-100%' }}
-                transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <div className="mb-6 px-1">
-                  <Logo />
-                </div>
-                <NavLinks onNavigate={() => setDrawerOpen(false)} />
-              </motion.aside>
-            </>
-          )}
-        </AnimatePresence>
 
         <main className="min-w-0 flex-1 p-4 lg:p-6">{children}</main>
       </div>

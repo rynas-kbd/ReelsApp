@@ -3,41 +3,115 @@
 @tailwind utilities;
 
 /*
- * Variables CSS dérivées de @reelvault/design-tokens (dark mode par défaut).
- * Les valeurs HSL alimentent les composants shadcn ; les valeurs hex brutes
- * sont mappées dans tailwind.config.ts via le package de tokens.
+ * ReelVault — Design system (Bento éditorial).
+ * Deux thèmes complets : :root = clair, .dark = sombre.
+ * Les variables alimentent à la fois les tokens shadcn (--background, --card…)
+ * et les tokens custom ReelVault (--bg, --surface, --text…), tous mappés dans
+ * tailwind.config.ts. Couleur HSL en canaux bruts pour permettre l'alpha (/ .16).
  */
+
 :root {
-  /* Fonds / surfaces (dark mode par défaut) */
-  --background: 240 17% 5%; /* #0B0B0F */
-  --foreground: 240 5% 96%; /* #F4F4F5 */
+  color-scheme: light;
 
-  --card: 240 14% 10%; /* #16161D */
-  --card-foreground: 240 5% 96%;
-
-  --popover: 240 14% 12%; /* #1F1F29 */
-  --popover-foreground: 240 5% 96%;
-
-  --primary: 262 83% 58%; /* #7C3AED */
+  /* shadcn */
+  --background: 240 24% 98%;       /* page off-white */
+  --foreground: 240 10% 9%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 9%;
+  --primary: 258 90% 60%;
   --primary-foreground: 0 0% 100%;
-
-  --secondary: 240 13% 15%; /* #1F1F29 */
-  --secondary-foreground: 240 5% 96%;
-
-  --muted: 240 13% 15%;
-  --muted-foreground: 240 5% 65%; /* #A1A1AA */
-
-  --accent: 262 83% 58%;
-  --accent-foreground: 0 0% 100%;
-
-  --destructive: 0 84% 60%; /* #EF4444 */
+  --secondary: 240 20% 96%;
+  --secondary-foreground: 240 10% 12%;
+  --muted: 240 20% 96%;
+  --muted-foreground: 240 4% 42%;
+  --accent: 240 20% 95%;           /* hover neutre (shadcn) */
+  --accent-foreground: 240 10% 12%;
+  --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
+  --border: 240 12% 90%;
+  --input: 240 12% 90%;
+  --ring: 258 90% 60%;
+  --radius: 0.875rem;
 
-  --border: 240 14% 19%; /* #2A2A36 */
+  /* Marque (accent ReelVault) */
+  --brand: 258 90% 60%;
+  --brand-2: 292 84% 58%;
+
+  /* Tokens custom ReelVault */
+  --bg: 240 24% 98%;
+  --surface: 0 0% 100%;
+  --surface-2: 240 20% 96%;
+  --surface-3: 240 16% 93%;
+  --border-subtle: 240 12% 90%;
+  --border-strong: 240 10% 82%;
+  --text: 240 10% 9%;
+  --text-secondary: 240 5% 34%;
+  --text-muted: 240 4% 46%;
+
+  --success: 142 71% 40%;
+  --warning: 38 92% 45%;
+  --danger: 0 72% 51%;
+  --info: 217 91% 55%;
+
+  /* Charts (génériques) */
+  --chart-1: 258 90% 60%;
+  --chart-2: 292 84% 58%;
+  --chart-3: 217 91% 55%;
+  --chart-4: 142 71% 40%;
+  --chart-5: 38 92% 45%;
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* shadcn */
+  --background: 240 17% 5%;        /* #0B0B0F */
+  --foreground: 240 5% 96%;
+  --card: 240 14% 10%;             /* #16161D */
+  --card-foreground: 240 5% 96%;
+  --popover: 240 14% 12%;
+  --popover-foreground: 240 5% 96%;
+  --primary: 258 90% 66%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 13% 15%;
+  --secondary-foreground: 240 5% 96%;
+  --muted: 240 13% 15%;
+  --muted-foreground: 240 5% 65%;
+  --accent: 240 13% 16%;           /* hover neutre (shadcn) */
+  --accent-foreground: 240 5% 96%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 14% 19%;
   --input: 240 14% 19%;
-  --ring: 262 83% 58%; /* #7C3AED */
+  --ring: 258 90% 66%;
 
-  --radius: 0.75rem;
+  /* Marque */
+  --brand: 258 90% 66%;
+  --brand-2: 292 84% 61%;
+
+  /* Tokens custom ReelVault */
+  --bg: 240 17% 5%;
+  --surface: 240 14% 10%;
+  --surface-2: 240 13% 15%;
+  --surface-3: 240 12% 18%;
+  --border-subtle: 240 14% 19%;
+  --border-strong: 240 12% 25%;
+  --text: 240 5% 96%;
+  --text-secondary: 240 4% 65%;
+  --text-muted: 240 5% 46%;
+
+  --success: 142 71% 45%;
+  --warning: 38 92% 50%;
+  --danger: 0 84% 60%;
+  --info: 217 91% 60%;
+
+  --chart-1: 258 90% 66%;
+  --chart-2: 292 84% 61%;
+  --chart-3: 217 91% 60%;
+  --chart-4: 142 71% 45%;
+  --chart-5: 38 92% 50%;
 }
 
 * {
@@ -45,41 +119,43 @@
 }
 
 html {
-  color-scheme: dark;
+  scroll-behavior: smooth;
 }
 
 body {
-  background-color: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background-color: hsl(var(--bg));
+  color: hsl(var(--text));
   font-feature-settings: 'rlig' 1, 'calt' 1;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Dégradé d'accent réutilisable */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Dégradé d'accent réutilisable (pilotté par les variables de marque) */
 .text-gradient-accent {
-  background: linear-gradient(135deg, #7c3aed 0%, #d946ef 100%);
+  background: linear-gradient(135deg, hsl(var(--brand)) 0%, hsl(var(--brand-2)) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
-
 .bg-gradient-accent {
-  background-image: linear-gradient(135deg, #7c3aed 0%, #d946ef 100%);
+  background-image: linear-gradient(135deg, hsl(var(--brand)) 0%, hsl(var(--brand-2)) 100%);
 }
 
-/* Scrollbar discrète */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* Scrollbar discrète (adaptée aux 2 thèmes) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: #2a2a36;
+  background: hsl(var(--border-strong));
   border-radius: 9999px;
-  border: 2px solid #0b0b0f;
+  border: 2px solid hsl(var(--bg));
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #3a3a48;
-}
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--text-muted)); }

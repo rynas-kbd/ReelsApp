@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTheme } from 'next-themes';
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -24,8 +25,35 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/empty-state';
 import { formatDate, formatNumber } from '@/lib/utils';
 
-const ACCENT = '#7C3AED';
-const ACCENT_TO = '#D946EF';
+/** Lit les couleurs du thème courant depuis les variables CSS (re-lecture au switch). */
+function useChartColors() {
+  const { resolvedTheme } = useTheme();
+  const [c, setC] = useState({
+    brand: 'hsl(258 90% 60%)',
+    brand2: 'hsl(292 84% 58%)',
+    grid: 'hsl(240 12% 90%)',
+    axis: 'hsl(240 4% 46%)',
+    tooltipBg: 'hsl(0 0% 100%)',
+    tooltipBorder: 'hsl(240 12% 90%)',
+    tooltipText: 'hsl(240 10% 9%)',
+    cursor: 'hsl(240 20% 96%)',
+  });
+  useEffect(() => {
+    const s = getComputedStyle(document.documentElement);
+    const h = (name: string) => `hsl(${s.getPropertyValue(name).trim()})`;
+    setC({
+      brand: h('--brand'),
+      brand2: h('--brand-2'),
+      grid: h('--border-subtle'),
+      axis: h('--text-muted'),
+      tooltipBg: h('--surface-2'),
+      tooltipBorder: h('--border-subtle'),
+      tooltipText: h('--text'),
+      cursor: h('--surface-2'),
+    });
+  }, [resolvedTheme]);
+  return c;
+}
 
 function StatCard({
   icon: Icon,
@@ -37,13 +65,13 @@ function StatCard({
   value: string | number;
 }) {
   return (
-    <Card>
+    <Card className="transition-shadow hover:shadow-glow">
       <CardContent className="flex items-center gap-4 p-5">
         <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft">
           <Icon className="h-5 w-5 text-accent" />
         </span>
         <div>
-          <p className="text-2xl font-bold text-text">{value}</p>
+          <p className="font-display text-2xl font-bold text-text">{value}</p>
           <p className="text-xs text-text-secondary">{label}</p>
         </div>
       </CardContent>
@@ -51,16 +79,9 @@ function StatCard({
   );
 }
 
-const tooltipStyle = {
-  backgroundColor: '#1F1F29',
-  border: '1px solid #2A2A36',
-  borderRadius: 12,
-  color: '#F4F4F5',
-  fontSize: 12,
-};
-
 export function StatsView() {
   const supabase = useMemo(() => createClient(), []);
+  const colors = useChartColors();
   const [stats, setStats] = useState<LibraryStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -75,6 +96,14 @@ export function StatsView() {
       }
     })();
   }, [supabase]);
+
+  const tooltipStyle = {
+    backgroundColor: colors.tooltipBg,
+    border: `1px solid ${colors.tooltipBorder}`,
+    borderRadius: 12,
+    color: colors.tooltipText,
+    fontSize: 12,
+  };
 
   if (loading) {
     return (
@@ -136,7 +165,7 @@ export function StatsView() {
                       stroke="none"
                     >
                       {stats.byCategory.map((c) => (
-                        <Cell key={c.categoryId} fill={c.color || ACCENT} />
+                        <Cell key={c.categoryId} fill={c.color || colors.brand} />
                       ))}
                     </Pie>
                     <Tooltip contentStyle={tooltipStyle} />
@@ -147,7 +176,7 @@ export function StatsView() {
                     <li key={c.categoryId} className="flex items-center gap-2 text-sm">
                       <span
                         className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: c.color || ACCENT }}
+                        style={{ backgroundColor: c.color || colors.brand }}
                       />
                       <span className="flex-1 truncate text-text-secondary">{c.name}</span>
                       <span className="text-text-muted">{c.count}</span>
@@ -177,24 +206,18 @@ export function StatsView() {
                   layout="vertical"
                   margin={{ left: 8, right: 16 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2A2A36" horizontal={false} />
-                  <XAxis type="number" stroke="#71717A" fontSize={12} allowDecimals={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    stroke="#71717A"
-                    fontSize={12}
-                    width={110}
-                  />
-                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#1F1F29' }} />
-                  <Bar dataKey="count" fill={ACCENT_TO} radius={[0, 6, 6, 0]} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} horizontal={false} />
+                  <XAxis type="number" stroke={colors.axis} fontSize={12} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" stroke={colors.axis} fontSize={12} width={110} />
+                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: colors.cursor }} />
+                  <Bar dataKey="count" fill={colors.brand2} radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
 
-        {/* Line chart évolution */}
+        {/* Area chart évolution */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>{STRINGS.stats.overTime}</CardTitle>
@@ -204,26 +227,27 @@ export function StatsView() {
               <p className="py-12 text-center text-sm text-text-muted">{STRINGS.stats.noData}</p>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={stats.overTime} margin={{ left: 0, right: 16 }}>
+                <AreaChart data={stats.overTime} margin={{ left: 0, right: 16 }}>
                   <defs>
-                    <linearGradient id="lineAccent" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor={ACCENT} />
-                      <stop offset="100%" stopColor={ACCENT_TO} />
+                    <linearGradient id="areaAccent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={colors.brand} stopOpacity={0.45} />
+                      <stop offset="100%" stopColor={colors.brand} stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2A2A36" />
-                  <XAxis dataKey="date" stroke="#71717A" fontSize={12} />
-                  <YAxis stroke="#71717A" fontSize={12} allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} />
+                  <XAxis dataKey="date" stroke={colors.axis} fontSize={12} />
+                  <YAxis stroke={colors.axis} fontSize={12} allowDecimals={false} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Line
+                  <Area
                     type="monotone"
                     dataKey="count"
-                    stroke="url(#lineAccent)"
+                    stroke={colors.brand}
                     strokeWidth={2.5}
-                    dot={{ fill: ACCENT, r: 3 }}
+                    fill="url(#areaAccent)"
+                    dot={{ fill: colors.brand, r: 3 }}
                     activeDot={{ r: 5 }}
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             )}
           </CardContent>
@@ -242,7 +266,7 @@ export function StatsView() {
             <ul className="divide-y divide-border-subtle">
               {stats.mostViewed.slice(0, 8).map((reel, i) => (
                 <li key={reel.id} className="flex items-center gap-3 py-3">
-                  <span className="w-5 text-sm font-semibold text-text-muted">{i + 1}</span>
+                  <span className="w-5 font-display text-sm font-semibold text-text-muted">{i + 1}</span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-text">
                       {reel.title || reel.caption || 'Réel sans titre'}

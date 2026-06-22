@@ -27,7 +27,7 @@ export function Logo({
         <Clapperboard className={cn('text-white', icon)} />
       </span>
       {showName && (
-        <span className={cn('font-bold tracking-tight text-text', text)}>
+        <span className={cn('font-display font-bold tracking-tight text-text', text)}>
           {STRINGS.app.name}
         </span>
       )}

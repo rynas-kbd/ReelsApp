@@ -18,9 +18,11 @@
   "engines": {
     "node": ">=20"
   },
-  "comment": "react/react-dom 18.3.1 sont déclarés ici pour FORCER le hoist de cette version à la racine (requise par Next 15 côté web). L'app mobile épingle react 18.2.0 et obtient donc une copie imbriquée isolée dans apps/mobile/node_modules.",
+  "comment": "react/react-dom 18.3.1 sont déclarés ici pour FORCER le hoist de cette version à la racine (requise par Next 15 côté web). L'app mobile épingle react 18.2.0 et obtient une copie imbriquée. `overrides` force une SEULE version de @types/react dans le sous-arbre du web (sinon une 2e copie casse le typage JSX des composants Radix) — sans toucher au mobile.",
   "dependencies": {
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.1"
   }
 }
