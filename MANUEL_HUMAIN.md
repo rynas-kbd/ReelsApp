@@ -292,6 +292,56 @@ Puis **redeploy** (Vercel → Deployments → Redeploy) pour que les routes pren
 
 ---
 
+## 🧠 Étape 9 — Activer le Second Brain (sélection IA périodique)
+
+### 9.1 Appliquer les migrations
+
+```bash
+supabase db push --linked
+```
+
+Les migrations `0009_digests.sql` et `0010_digest_cron.sql` ajoutent le profil utilisateur enrichi, les tables `digests` et `digest_reels`, et les extensions pg_cron/pg_net.
+
+### 9.2 Déployer la nouvelle Edge Function
+
+```bash
+supabase functions deploy generate-digest --linked
+```
+
+### 9.3 Activer le cron automatique (une seule fois via le SQL Editor de Supabase)
+
+1. Connecte-toi à ton **Dashboard Supabase** → **SQL Editor**.
+2. Copie-colle la commande ci-dessous en remplaçant `<SUPABASE_PROJECT_URL>` et `<SERVICE_ROLE_KEY>` par tes vraies valeurs (Settings → API) :
+
+```sql
+select cron.schedule(
+  'reelvault-generate-digests',
+  '0 8 * * *',
+  $$
+    select net.http_post(
+      url := '<SUPABASE_PROJECT_URL>/functions/v1/generate-digest',
+      headers := '{"Content-Type":"application/json","Authorization":"Bearer <SERVICE_ROLE_KEY>"}'::jsonb,
+      body := '{"cron":true}'::jsonb
+    );
+  $$
+);
+```
+
+> Ce cron tourne **chaque jour à 08h00 UTC** et génère automatiquement les sélections pour tous les utilisateurs dont la période est écoulée (hebdo ou mensuel). Une notification push est envoyée.
+
+### 9.4 Variable d'environnement Vercel
+
+Pour que le bouton « Générer maintenant » fonctionne, assure-toi que `SUPABASE_SERVICE_ROLE_KEY` est bien dans les variables Vercel (c'était déjà requis pour l'OAuth Instagram — voir Étape 5.7).
+
+### 9.5 Vérifier
+
+- Ouvre le site, va dans **Ma sélection** (`/digest`).
+- Si tu as ≥ 3 réels dans ta bibliothèque, clique **« Générer maintenant »** pour tester sans attendre le cron.
+- La synthèse IA et les réels sélectionnés apparaissent. Tu peux les noter sur 5 étoiles.
+- La fréquence se règle dans **Paramètres → Sélection personnalisée** (ou dans l'onboarding).
+
+---
+
 ## 🔁 Récapitulatif des clés à me fournir (si tu veux que je fasse les étapes techniques)
 
 - 🔑 Supabase : **Reference ID**, **Project URL**, **anon key**, **service_role key**

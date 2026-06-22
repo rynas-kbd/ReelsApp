@@ -3,6 +3,7 @@
 export type ReelSource = 'webhook' | 'manual' | 'share';
 export type ReelStatus = 'pending' | 'enriched' | 'classified' | 'failed';
 export type ConnectionStatus = 'pending' | 'active' | 'revoked';
+export type DigestFrequency = 'weekly' | 'monthly' | 'off';
 
 export interface Profile {
   id: string;
@@ -11,6 +12,39 @@ export interface Profile {
   expo_push_token: string | null;
   onboarded: boolean;
   created_at: string;
+  // Second brain
+  goals: string[] | null;
+  interests: string[] | null;
+  persona: string | null;
+  expertise_level: string | null;
+  time_per_week: string | null;
+  digest_about: string | null;
+  digest_frequency: DigestFrequency;
+  profile_completed: boolean;
+}
+
+export interface Digest {
+  id: string;
+  user_id: string;
+  frequency: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  summary: string | null;
+  rating: number | null;
+  rated_at: string | null;
+  status: string;
+  created_at: string;
+}
+
+export interface DigestReel {
+  digest_id: string;
+  reel_id: string;
+  rank: number;
+  reason: string | null;
+}
+
+export interface DigestWithReels extends Digest {
+  reels: (ReelWithCategory & { rank: number; reason: string | null })[];
 }
 
 export interface Category {

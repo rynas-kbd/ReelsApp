@@ -28,6 +28,7 @@ export default async function OnboardingPage({
       userId={user.id}
       connection={connection}
       igResult={ig ?? null}
+      profile={profile}
     />
   );
 }

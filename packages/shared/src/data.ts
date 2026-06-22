@@ -6,6 +6,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   ApiKeyProvider,
   Category,
+  Digest,
+  DigestWithReels,
   InstagramConnection,
   LibraryFilters,
   Profile,
@@ -83,7 +85,23 @@ export async function fetchProfile(supabase: SupabaseClient, userId: string): Pr
 export async function updateProfile(
   supabase: SupabaseClient,
   userId: string,
-  patch: Partial<Pick<Profile, 'display_name' | 'notif_enabled' | 'expo_push_token' | 'onboarded'>>,
+  patch: Partial<
+    Pick<
+      Profile,
+      | 'display_name'
+      | 'notif_enabled'
+      | 'expo_push_token'
+      | 'onboarded'
+      | 'goals'
+      | 'interests'
+      | 'persona'
+      | 'expertise_level'
+      | 'time_per_week'
+      | 'digest_about'
+      | 'digest_frequency'
+      | 'profile_completed'
+    >
+  >,
 ): Promise<void> {
   const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
   if (error) throw error;
@@ -188,6 +206,59 @@ export async function addApiKey(
 /** Supprime une clé API (RLS = uniquement les siennes). */
 export async function deleteApiKey(supabase: SupabaseClient, id: string): Promise<void> {
   const { error } = await supabase.from('user_api_keys').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─────────────────────── Digest (sélection IA) ───────────────────────────────
+
+const DIGEST_REEL_SELECT =
+  'rank, reason, reel:reels(*, category:categories(id, name, slug, color, icon))';
+
+/** Dernier digest généré avec ses réels (jointure complète). */
+export async function fetchLatestDigest(supabase: SupabaseClient): Promise<DigestWithReels | null> {
+  const { data: digest, error } = await supabase
+    .from('digests')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!digest) return null;
+
+  const { data: rows, error: err2 } = await supabase
+    .from('digest_reels')
+    .select(DIGEST_REEL_SELECT)
+    .eq('digest_id', digest.id)
+    .order('rank', { ascending: true });
+  if (err2) throw err2;
+
+  const reels = ((rows ?? []) as unknown as { rank: number; reason: string | null; reel: ReelWithCategory }[])
+    .filter((r) => r.reel != null)
+    .map(({ rank, reason, reel }) => ({ ...reel, rank, reason }));
+
+  return { ...(digest as Digest), reels };
+}
+
+/** Historique des digests (sans les réels). */
+export async function fetchDigests(supabase: SupabaseClient): Promise<Digest[]> {
+  const { data, error } = await supabase
+    .from('digests')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Digest[];
+}
+
+/** Enregistre la note de l'utilisateur sur un digest. */
+export async function rateDigest(
+  supabase: SupabaseClient,
+  digestId: string,
+  rating: number,
+): Promise<void> {
+  const { error } = await supabase
+    .from('digests')
+    .update({ rating, rated_at: new Date().toISOString() })
+    .eq('id', digestId);
   if (error) throw error;
 }
 

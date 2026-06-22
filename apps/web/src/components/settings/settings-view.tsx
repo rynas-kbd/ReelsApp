@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { FileDown, FileText, Instagram, Loader2, LogOut, Moon } from 'lucide-react';
+import { FileDown, FileText, Instagram, Loader2, LogOut, Moon, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   STRINGS,
@@ -10,6 +10,7 @@ import {
   updateProfile,
   fetchReels,
   disconnectInstagram,
+  type DigestFrequency,
   type InstagramConnection,
   type Profile,
 } from '@reelvault/shared';
@@ -35,6 +36,8 @@ export function SettingsView({ userId }: { userId: string }) {
 
   const [savingName, setSavingName] = useState(false);
   const [savingNotif, setSavingNotif] = useState(false);
+  const [digestFrequency, setDigestFrequency] = useState<DigestFrequency>('weekly');
+  const [savingFrequency, setSavingFrequency] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [exporting, setExporting] = useState<'csv' | 'pdf' | null>(null);
@@ -48,6 +51,7 @@ export function SettingsView({ userId }: { userId: string }) {
         ]);
         setProfile(p);
         setDisplayName(p?.display_name ?? '');
+        setDigestFrequency(p?.digest_frequency ?? 'weekly');
         setConnection(c);
       } catch {
         toast.error(STRINGS.common.error);
@@ -83,6 +87,19 @@ export function SettingsView({ userId }: { userId: string }) {
       toast.error(STRINGS.common.error);
     } finally {
       setSavingName(false);
+    }
+  }
+
+  async function saveDigestFrequency(freq: DigestFrequency) {
+    setDigestFrequency(freq);
+    setSavingFrequency(true);
+    try {
+      await updateProfile(supabase, userId, { digest_frequency: freq });
+      toast.success(STRINGS.settings.digestFrequencySaved);
+    } catch {
+      toast.error(STRINGS.common.error);
+    } finally {
+      setSavingFrequency(false);
     }
   }
 
@@ -270,6 +287,47 @@ export function SettingsView({ userId }: { userId: string }) {
             </div>
             <Badge variant="secondary">{STRINGS.settings.darkMode}</Badge>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Sélection personnalisée */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-accent" />
+            {STRINGS.settings.digestTitle}
+          </CardTitle>
+          <CardDescription>{STRINGS.settings.digestFrequencyLabel}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {(
+              [
+                { id: 'weekly', label: STRINGS.digest.period.weekly },
+                { id: 'monthly', label: STRINGS.digest.period.monthly },
+                { id: 'off', label: STRINGS.onboarding.frequency.off.label },
+              ] as { id: DigestFrequency; label: string }[]
+            ).map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                disabled={savingFrequency}
+                onClick={() => saveDigestFrequency(id)}
+                className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all disabled:opacity-60 ${
+                  digestFrequency === id
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-border-subtle bg-surface-2 text-text-secondary hover:border-border-strong hover:text-text'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {savingFrequency && (
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-text-muted">
+              <Loader2 className="h-3 w-3 animate-spin" /> Enregistrement…
+            </p>
+          )}
         </CardContent>
       </Card>
 
