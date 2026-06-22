@@ -29,7 +29,7 @@ import {
 import { EmptyState } from '@/components/empty-state';
 import { ReelCard } from '@/components/library/reel-card';
 import { ReelGridSkeleton } from '@/components/library/reel-card-skeleton';
-import { CategorySidebar } from '@/components/library/category-sidebar';
+import { CategoryChips } from '@/components/library/category-chips';
 import { AddReelDialog } from '@/components/library/add-reel-dialog';
 
 const PAGE_SIZE = 24;
@@ -43,8 +43,9 @@ export function LibraryView() {
 
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const debouncedSearch = useDebounce(search, 350);
+  const autoAdd = searchParams.get('add') === '1';
 
-  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [categoryId, setCategoryId] = useState<string | null>(searchParams.get('category'));
   const [authorUsername, setAuthorUsername] = useState<string | null>(null);
   const [sort, setSort] = useState<SortValue>('recent');
 
@@ -139,121 +140,112 @@ export function LibraryView() {
     Boolean(debouncedSearch) || Boolean(categoryId) || Boolean(authorUsername);
 
   return (
-    <div className="flex flex-col gap-6 lg:flex-row">
-      {/* Sidebar catégories */}
-      <aside className="lg:w-60 lg:shrink-0">
-        <h2 className="mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-text-muted">
-          {STRINGS.categories.title}
-        </h2>
-        <CategorySidebar
-          categories={categories}
-          counts={counts}
-          activeCategory={categoryId}
-          total={total}
-          onSelect={setCategoryId}
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="font-display text-2xl font-bold tracking-tight text-text sm:text-3xl">
+          {STRINGS.library.title}
+        </h1>
+        <AddReelDialog
+          defaultOpen={autoAdd}
+          onAdded={() => {
+            loadMeta();
+            loadReels();
+          }}
         />
-      </aside>
+      </div>
 
-      {/* Zone principale */}
-      <div className="min-w-0 flex-1">
-        <div className="mb-5 flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="font-display text-2xl font-bold tracking-tight text-text sm:text-3xl">
-              {STRINGS.library.title}
-            </h1>
-            <AddReelDialog
-              onAdded={() => {
-                loadMeta();
-                loadReels();
-              }}
-            />
-          </div>
+      {/* Chips catégories */}
+      <CategoryChips
+        categories={categories}
+        counts={counts}
+        total={total}
+        activeCategory={categoryId}
+        onSelect={setCategoryId}
+      />
 
-          {/* Barre de recherche + filtres */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={STRINGS.library.searchPlaceholder}
-                className="pl-9"
-              />
-            </div>
-
-            <Select
-              value={authorUsername ?? ALL}
-              onValueChange={(v) => setAuthorUsername(v === ALL ? null : v)}
-            >
-              <SelectTrigger className="w-full sm:w-52">
-                <SelectValue placeholder={STRINGS.library.filterByAuthor} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>{STRINGS.library.filterByAuthor}</SelectItem>
-                {authors.map((a) => (
-                  <SelectItem key={a.author_username} value={a.author_username}>
-                    @{a.author_username}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={sort} onValueChange={(v) => setSort(v as SortValue)}>
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="recent">{STRINGS.library.sortRecent}</SelectItem>
-                <SelectItem value="oldest">{STRINGS.library.sortOldest}</SelectItem>
-                <SelectItem value="most_viewed">{STRINGS.library.sortMostViewed}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      {/* Recherche + filtres */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={STRINGS.library.searchPlaceholder}
+            className="pl-9"
+          />
         </div>
 
-        {/* Grille */}
-        {loading ? (
-          <ReelGridSkeleton />
-        ) : reels.length === 0 ? (
-          isFiltered ? (
-            <EmptyState
-              icon={SearchX}
-              title={STRINGS.library.emptyFiltered.title}
-              subtitle={STRINGS.library.emptyFiltered.subtitle}
-            />
-          ) : (
-            <EmptyState
-              icon={LibraryIcon}
-              title={STRINGS.library.empty.title}
-              subtitle={STRINGS.library.empty.subtitle}
-              action={
-                <AddReelDialog
-                  onAdded={() => {
-                    loadMeta();
-                    loadReels();
-                  }}
-                />
-              }
-            />
-          )
-        ) : (
-          <>
-            <div className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-4 xl:columns-5">
-              {reels.map((reel, i) => (
-                <ReelCard key={reel.id} reel={reel} index={i} onOpen={openReel} />
-              ))}
-            </div>
+        <Select
+          value={authorUsername ?? ALL}
+          onValueChange={(v) => setAuthorUsername(v === ALL ? null : v)}
+        >
+          <SelectTrigger className="w-full sm:w-52">
+            <SelectValue placeholder={STRINGS.library.filterByAuthor} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{STRINGS.library.filterByAuthor}</SelectItem>
+            {authors.map((a) => (
+              <SelectItem key={a.author_username} value={a.author_username}>
+                @{a.author_username}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-            {hasMore && (
-              <div className="mt-8 flex justify-center">
-                <Button variant="secondary" onClick={loadMore} disabled={loadingMore}>
-                  {loadingMore ? STRINGS.common.loading : 'Charger plus'}
-                </Button>
-              </div>
-            )}
-          </>
-        )}
+        <Select value={sort} onValueChange={(v) => setSort(v as SortValue)}>
+          <SelectTrigger className="w-full sm:w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="recent">{STRINGS.library.sortRecent}</SelectItem>
+            <SelectItem value="oldest">{STRINGS.library.sortOldest}</SelectItem>
+            <SelectItem value="most_viewed">{STRINGS.library.sortMostViewed}</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
+
+      {/* Grille */}
+      {loading ? (
+        <ReelGridSkeleton />
+      ) : reels.length === 0 ? (
+        isFiltered ? (
+          <EmptyState
+            icon={SearchX}
+            title={STRINGS.library.emptyFiltered.title}
+            subtitle={STRINGS.library.emptyFiltered.subtitle}
+          />
+        ) : (
+          <EmptyState
+            icon={LibraryIcon}
+            title={STRINGS.library.empty.title}
+            subtitle={STRINGS.library.empty.subtitle}
+            action={
+              <AddReelDialog
+                onAdded={() => {
+                  loadMeta();
+                  loadReels();
+                }}
+              />
+            }
+          />
+        )
+      ) : (
+        <>
+          <div className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-4 xl:columns-5">
+            {reels.map((reel, i) => (
+              <ReelCard key={reel.id} reel={reel} index={i} onOpen={openReel} />
+            ))}
+          </div>
+
+          {hasMore && (
+            <div className="mt-8 flex justify-center">
+              <Button variant="secondary" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore ? STRINGS.common.loading : 'Charger plus'}
+              </Button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

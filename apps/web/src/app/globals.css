@@ -3,115 +3,111 @@
 @tailwind utilities;
 
 /*
- * ReelVault — Design system (Bento éditorial).
- * Deux thèmes complets : :root = clair, .dark = sombre.
- * Les variables alimentent à la fois les tokens shadcn (--background, --card…)
- * et les tokens custom ReelVault (--bg, --surface, --text…), tous mappés dans
- * tailwind.config.ts. Couleur HSL en canaux bruts pour permettre l'alpha (/ .16).
+ * ReelVault — Design system « Galerie éditoriale ».
+ * Clair par défaut (fond papier chaud, encre, accent corail), + variante sombre.
+ * Variables = tokens shadcn (--background, --card…) ET tokens custom (--bg, --surface…).
+ * HSL en canaux bruts pour permettre l'alpha (/ .16).
  */
 
 :root {
   color-scheme: light;
 
   /* shadcn */
-  --background: 240 24% 98%;       /* page off-white */
-  --foreground: 240 10% 9%;
+  --background: 48 24% 96%;        /* papier chaud */
+  --foreground: 240 13% 9%;        /* encre */
   --card: 0 0% 100%;
-  --card-foreground: 240 10% 9%;
+  --card-foreground: 240 13% 9%;
   --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 9%;
-  --primary: 258 90% 60%;
+  --popover-foreground: 240 13% 9%;
+  --primary: 240 13% 9%;           /* encre (boutons) */
   --primary-foreground: 0 0% 100%;
-  --secondary: 240 20% 96%;
-  --secondary-foreground: 240 10% 12%;
-  --muted: 240 20% 96%;
-  --muted-foreground: 240 4% 42%;
-  --accent: 240 20% 95%;           /* hover neutre (shadcn) */
-  --accent-foreground: 240 10% 12%;
+  --secondary: 48 20% 93%;
+  --secondary-foreground: 240 13% 12%;
+  --muted: 48 20% 93%;
+  --muted-foreground: 240 5% 42%;
+  --accent: 48 24% 92%;            /* hover neutre (shadcn) */
+  --accent-foreground: 240 13% 12%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
-  --border: 240 12% 90%;
-  --input: 240 12% 90%;
-  --ring: 258 90% 60%;
-  --radius: 0.875rem;
+  --border: 45 14% 88%;
+  --input: 45 14% 88%;
+  --ring: 11 95% 55%;              /* corail (focus pop) */
+  --radius: 1rem;
 
-  /* Marque (accent ReelVault) */
-  --brand: 258 90% 60%;
-  --brand-2: 292 84% 58%;
+  /* Marque (accent éditorial corail → ambre) */
+  --brand: 11 95% 55%;
+  --brand-2: 33 100% 50%;
 
-  /* Tokens custom ReelVault */
-  --bg: 240 24% 98%;
+  /* Tokens custom */
+  --bg: 48 24% 96%;
   --surface: 0 0% 100%;
-  --surface-2: 240 20% 96%;
-  --surface-3: 240 16% 93%;
-  --border-subtle: 240 12% 90%;
-  --border-strong: 240 10% 82%;
-  --text: 240 10% 9%;
-  --text-secondary: 240 5% 34%;
-  --text-muted: 240 4% 46%;
+  --surface-2: 48 22% 94%;
+  --surface-3: 45 18% 90%;
+  --border-subtle: 45 14% 88%;
+  --border-strong: 45 12% 80%;
+  --text: 240 13% 9%;
+  --text-secondary: 240 6% 32%;
+  --text-muted: 240 5% 50%;
 
-  --success: 142 71% 40%;
-  --warning: 38 92% 45%;
+  --success: 152 62% 38%;
+  --warning: 33 100% 42%;
   --danger: 0 72% 51%;
-  --info: 217 91% 55%;
+  --info: 217 91% 52%;
 
-  /* Charts (génériques) */
-  --chart-1: 258 90% 60%;
-  --chart-2: 292 84% 58%;
-  --chart-3: 217 91% 55%;
-  --chart-4: 142 71% 40%;
-  --chart-5: 38 92% 45%;
+  --chart-1: 11 95% 55%;
+  --chart-2: 33 100% 50%;
+  --chart-3: 217 91% 52%;
+  --chart-4: 152 62% 38%;
+  --chart-5: 270 70% 55%;
 }
 
 .dark {
   color-scheme: dark;
 
   /* shadcn */
-  --background: 240 17% 5%;        /* #0B0B0F */
-  --foreground: 240 5% 96%;
-  --card: 240 14% 10%;             /* #16161D */
-  --card-foreground: 240 5% 96%;
-  --popover: 240 14% 12%;
-  --popover-foreground: 240 5% 96%;
-  --primary: 258 90% 66%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 240 13% 15%;
-  --secondary-foreground: 240 5% 96%;
-  --muted: 240 13% 15%;
-  --muted-foreground: 240 5% 65%;
-  --accent: 240 13% 16%;           /* hover neutre (shadcn) */
-  --accent-foreground: 240 5% 96%;
+  --background: 240 8% 6%;
+  --foreground: 48 12% 96%;
+  --card: 240 7% 10%;
+  --card-foreground: 48 12% 96%;
+  --popover: 240 7% 12%;
+  --popover-foreground: 48 12% 96%;
+  --primary: 48 12% 96%;           /* encre inversée (boutons) */
+  --primary-foreground: 240 13% 9%;
+  --secondary: 240 6% 15%;
+  --secondary-foreground: 48 12% 96%;
+  --muted: 240 6% 15%;
+  --muted-foreground: 240 5% 64%;
+  --accent: 240 6% 16%;
+  --accent-foreground: 48 12% 96%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 240 14% 19%;
-  --input: 240 14% 19%;
-  --ring: 258 90% 66%;
+  --border: 240 6% 18%;
+  --input: 240 6% 18%;
+  --ring: 11 96% 62%;
 
-  /* Marque */
-  --brand: 258 90% 66%;
-  --brand-2: 292 84% 61%;
+  --brand: 11 96% 62%;
+  --brand-2: 33 100% 58%;
 
-  /* Tokens custom ReelVault */
-  --bg: 240 17% 5%;
-  --surface: 240 14% 10%;
-  --surface-2: 240 13% 15%;
-  --surface-3: 240 12% 18%;
-  --border-subtle: 240 14% 19%;
-  --border-strong: 240 12% 25%;
-  --text: 240 5% 96%;
-  --text-secondary: 240 4% 65%;
-  --text-muted: 240 5% 46%;
+  --bg: 240 8% 6%;
+  --surface: 240 7% 10%;
+  --surface-2: 240 6% 14%;
+  --surface-3: 240 6% 17%;
+  --border-subtle: 240 6% 18%;
+  --border-strong: 240 6% 26%;
+  --text: 48 12% 96%;
+  --text-secondary: 240 5% 70%;
+  --text-muted: 240 5% 52%;
 
-  --success: 142 71% 45%;
-  --warning: 38 92% 50%;
+  --success: 152 60% 45%;
+  --warning: 33 100% 55%;
   --danger: 0 84% 60%;
   --info: 217 91% 60%;
 
-  --chart-1: 258 90% 66%;
-  --chart-2: 292 84% 61%;
-  --chart-3: 217 91% 60%;
-  --chart-4: 142 71% 45%;
-  --chart-5: 38 92% 50%;
+  --chart-1: 11 96% 62%;
+  --chart-2: 33 100% 58%;
+  --chart-3: 217 91% 62%;
+  --chart-4: 152 60% 48%;
+  --chart-5: 270 75% 66%;
 }
 
 * {
@@ -139,7 +135,7 @@ body {
   }
 }
 
-/* Dégradé d'accent réutilisable (pilotté par les variables de marque) */
+/* Dégradé d'accent (corail → ambre), piloté par les variables de marque */
 .text-gradient-accent {
   background: linear-gradient(135deg, hsl(var(--brand)) 0%, hsl(var(--brand-2)) 100%);
   -webkit-background-clip: text;
@@ -150,7 +146,7 @@ body {
   background-image: linear-gradient(135deg, hsl(var(--brand)) 0%, hsl(var(--brand-2)) 100%);
 }
 
-/* Scrollbar discrète (adaptée aux 2 thèmes) */
+/* Scrollbar discrète (2 thèmes) */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {

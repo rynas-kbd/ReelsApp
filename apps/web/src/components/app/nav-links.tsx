@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Library, LayoutDashboard, Settings, type LucideIcon } from 'lucide-react';
+import { Home, Library, BarChart3, FolderTree, Settings, type LucideIcon } from 'lucide-react';
 import { STRINGS } from '@reelvault/shared';
 import { cn } from '@/lib/utils';
 
 const LINKS: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: '/home', label: STRINGS.nav.home, icon: Home },
   { href: '/library', label: STRINGS.nav.library, icon: Library },
-  { href: '/dashboard', label: STRINGS.nav.dashboard, icon: LayoutDashboard },
+  { href: '/stats', label: STRINGS.nav.stats, icon: BarChart3 },
+  { href: '/categories', label: STRINGS.nav.categories, icon: FolderTree },
   { href: '/settings', label: STRINGS.nav.settings, icon: Settings },
 ];
 

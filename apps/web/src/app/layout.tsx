@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Outfit } from 'next/font/google';
+import { Inter, Fraunces } from 'next/font/google';
 import { STRINGS } from '@reelvault/shared';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
@@ -11,10 +11,12 @@ const inter = Inter({
   display: 'swap',
 });
 
-const outfit = Outfit({
+// Serif éditorial expressif pour les titres (identité « galerie »).
+const fraunces = Fraunces({
   subsets: ['latin'],
-  variable: '--font-outfit',
+  variable: '--font-display',
   display: 'swap',
+  axes: ['opsz'],
 });
 
 export const metadata: Metadata = {
@@ -24,9 +26,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className={`${inter.variable} ${outfit.variable}`} suppressHydrationWarning>
+    <html lang="fr" className={`${inter.variable} ${fraunces.variable}`} suppressHydrationWarning>
       <body className="min-h-screen bg-bg font-sans text-text antialiased">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           {children}
           <Toaster />
         </ThemeProvider>

@@ -90,7 +90,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
-        display: ['var(--font-outfit)', 'Outfit', 'system-ui', 'sans-serif'],
+        display: ['var(--font-display)', 'Fraunces', 'Georgia', 'serif'],
       },
       boxShadow: {
         soft: '0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06)',

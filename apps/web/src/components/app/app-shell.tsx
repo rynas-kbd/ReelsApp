@@ -2,15 +2,16 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Menu, Search } from 'lucide-react';
-import { STRINGS } from '@reelvault/shared';
+import { Menu } from 'lucide-react';
 import { Logo } from '@/components/brand/logo';
 import { NavLinks } from '@/components/app/nav-links';
 import { UserMenu } from '@/components/app/user-menu';
 import { ThemeToggle } from '@/components/app/theme-toggle';
-import { Input } from '@/components/ui/input';
+import { CommandMenu } from '@/components/app/command-menu';
 import { Button } from '@/components/ui/button';
+import { AddReelDialog } from '@/components/library/add-reel-dialog';
+import { Plus } from 'lucide-react';
+import { STRINGS } from '@reelvault/shared';
 import {
   Sheet,
   SheetContent,
@@ -28,15 +29,18 @@ export function AppShell({
   displayName: string | null;
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [quickSearch, setQuickSearch] = useState('');
 
-  function submitQuickSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const q = quickSearch.trim();
-    router.push(q ? `/library?q=${encodeURIComponent(q)}` : '/library');
-  }
+  const quickAdd = (
+    <AddReelDialog
+      trigger={
+        <Button className="w-full justify-start">
+          <Plus />
+          {STRINGS.nav.add}
+        </Button>
+      }
+    />
+  );
 
   return (
     <div className="min-h-screen">
@@ -54,29 +58,19 @@ export function AppShell({
                 <SheetTitle className="sr-only">Navigation</SheetTitle>
                 <Logo />
               </SheetHeader>
-              <div className="px-4 pb-4">
+              <div className="space-y-4 px-4 pb-4">
+                <div onClick={() => setDrawerOpen(false)}>{quickAdd}</div>
                 <NavLinks onNavigate={() => setDrawerOpen(false)} />
               </div>
             </SheetContent>
           </Sheet>
 
-          <Link href="/library" className="shrink-0">
+          <Link href="/home" className="shrink-0">
             <Logo />
           </Link>
 
-          <form onSubmit={submitQuickSearch} className="ml-auto hidden max-w-sm flex-1 md:block">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-              <Input
-                value={quickSearch}
-                onChange={(e) => setQuickSearch(e.target.value)}
-                placeholder={STRINGS.library.searchPlaceholder}
-                className="pl-9"
-              />
-            </div>
-          </form>
-
-          <div className="ml-auto flex items-center gap-1.5 md:ml-0">
+          <div className="ml-auto flex items-center gap-2">
+            <CommandMenu />
             <ThemeToggle />
             <UserMenu email={email} displayName={displayName} />
           </div>
@@ -85,7 +79,8 @@ export function AppShell({
 
       <div className="mx-auto flex w-full max-w-[1600px]">
         {/* Sidebar desktop */}
-        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-60 shrink-0 border-r border-border-subtle p-4 lg:block">
+        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-60 shrink-0 flex-col gap-4 border-r border-border-subtle p-4 lg:flex">
+          {quickAdd}
           <NavLinks />
         </aside>
 

@@ -45,10 +45,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Connecté sur une page d'auth → /library
+  // Connecté sur une page d'auth → /home
   if (user && (pathname.startsWith('/login') || pathname.startsWith('/signup'))) {
     const url = request.nextUrl.clone();
-    url.pathname = '/library';
+    url.pathname = '/home';
     return NextResponse.redirect(url);
   }
 

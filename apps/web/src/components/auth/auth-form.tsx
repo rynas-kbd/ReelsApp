@@ -33,7 +33,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           toast.error(STRINGS.auth.loginError);
           return;
         }
-        router.push('/library');
+        router.push('/home');
         router.refresh();
       } else {
         const { error } = await supabase.auth.signUp({ email, password });

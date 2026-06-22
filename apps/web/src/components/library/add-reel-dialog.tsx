@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { STRINGS, isInstagramUrl } from '@reelvault/shared';
@@ -17,8 +18,17 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-export function AddReelDialog({ onAdded }: { onAdded?: () => void }) {
-  const [open, setOpen] = useState(false);
+export function AddReelDialog({
+  onAdded,
+  trigger,
+  defaultOpen = false,
+}: {
+  onAdded?: () => void;
+  trigger?: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(defaultOpen);
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -57,7 +67,8 @@ export function AddReelDialog({ onAdded }: { onAdded?: () => void }) {
         toast.success(STRINGS.add.success);
         setUrl('');
         setOpen(false);
-        onAdded?.();
+        if (onAdded) onAdded();
+        else router.push('/library');
       } else if (res.status === 409) {
         toast.error(STRINGS.add.duplicate);
       } else {
@@ -80,10 +91,12 @@ export function AddReelDialog({ onAdded }: { onAdded?: () => void }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus />
-          {STRINGS.nav.add}
-        </Button>
+        {trigger ?? (
+          <Button>
+            <Plus />
+            {STRINGS.nav.add}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
