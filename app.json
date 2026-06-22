@@ -1,3 +1,24 @@
 {
-  "expo": {}
+  "expo": {
+    "name": "ReelVault",
+    "slug": "reelvault",
+    "owner": "sayniir",
+    "scheme": "reelvault",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "icon": "./apps/mobile/assets/icon.png",
+    "android": {
+      "package": "com.reelvault.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./apps/mobile/assets/adaptive-icon.png",
+        "backgroundColor": "#0B0B0F"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "a2053878-37ef-493c-9079-f028c63224f3"
+      }
+    }
+  }
 }
