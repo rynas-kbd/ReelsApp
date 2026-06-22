@@ -93,23 +93,15 @@ export interface InstagramUser {
 
 /** Infos du compte Instagram Business. */
 export async function getInstagramUserInfo(token: string): Promise<InstagramUser> {
-  // Champs essentiels uniquement. Sur graph.instagram.com/me (Instagram API with
-  // Instagram Login), demander `name`/`profile_picture_url` fait échouer TOUTE la
-  // requête avec « Unsupported request - method type: get ». On ne demande donc que
-  // ce qui est garanti et réellement utilisé ensuite (user_id + username).
-  const res = await fetch(
-    `https://graph.instagram.com/me?fields=user_id,username&access_token=${token}`,
-  );
+  const params = new URLSearchParams({ fields: 'user_id,username', access_token: token });
+  const res = await fetch(`https://graph.instagram.com/me?${params.toString()}`);
   const data = await res.json();
   if (!res.ok || data.error) {
     throw new Error(`Infos Instagram: ${data.error?.message ?? 'inconnu'}`);
   }
-  // Best-effort : on tente d'enrichir avec le nom et la photo, sans bloquer la
-  // connexion si ces champs ne sont pas disponibles pour ce compte.
   try {
-    const extraRes = await fetch(
-      `https://graph.instagram.com/me?fields=name,profile_picture_url&access_token=${token}`,
-    );
+    const extraParams = new URLSearchParams({ fields: 'name,profile_picture_url', access_token: token });
+    const extraRes = await fetch(`https://graph.instagram.com/me?${extraParams.toString()}`);
     const extra = await extraRes.json();
     if (extraRes.ok && !extra.error) {
       data.name = extra.name;
