@@ -6,6 +6,10 @@
  *   META_APP_ID        App ID de l'app Meta de ReelVault
  *   META_APP_SECRET    App Secret
  *   NEXT_PUBLIC_SITE_URL  (optionnel) origine publique stable
+ *
+ * Note : Instagram API with Instagram Login (depuis déc. 2023) retourne un token
+ * de 60 jours directement depuis api.instagram.com/oauth/access_token.
+ * L'échange ig_exchange_token (Basic Display API) ne s'applique plus.
  */
 
 const GRAPH_API_VERSION = 'v21.0';
@@ -41,14 +45,14 @@ export function getLoginUrl(request: Request, state: string): string {
 }
 
 /**
- * Échange le code contre un jeton court.
- * Renvoie AUSSI le `user_id` fourni par Instagram dans la réponse du token : c'est la
- * source autoritaire de l'ID du compte, on n'a donc pas besoin de `/me` pour l'obtenir.
+ * Échange le code contre un token.
+ * Instagram API with Instagram Login retourne un token de ~60 jours directement.
+ * On conserve `expiresIn` pour le stocker en base.
  */
 export async function exchangeCodeForToken(
   request: Request,
   code: string,
-): Promise<{ accessToken: string; userId: string | null }> {
+): Promise<{ accessToken: string; userId: string | null; expiresIn: number }> {
   const res = await fetch('https://api.instagram.com/oauth/access_token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -66,35 +70,48 @@ export async function exchangeCodeForToken(
       `Token exchange failed: ${data.error_message ?? data.error?.message ?? 'inconnu'}`,
     );
   }
+  console.log('[IG] token exchange OK, expires_in:', data.expires_in, 'user_id:', data.user_id);
   return {
     accessToken: data.access_token as string,
     userId: data.user_id != null ? String(data.user_id) : null,
+    // expires_in présent si déjà long-lived (≥86400s = 1 jour) ; sinon 0
+    expiresIn: typeof data.expires_in === 'number' ? data.expires_in : 0,
   };
 }
 
-/** Échange le jeton court contre un jeton long (~60 j). Repli sur le court si échec. */
+/**
+ * Tente d'échanger vers un token long (~60 j) si le token initial est court (< 1 h).
+ * Pour Instagram API with Instagram Login, le token est déjà long-lived — on le passe
+ * tel quel. L'échange ig_exchange_token ne s'applique qu'à l'ancienne Basic Display API.
+ */
 export async function exchangeForLongLivedToken(
-  shortLivedToken: string,
+  token: string,
+  initialExpiresIn: number,
 ): Promise<{ accessToken: string; expiresIn: number }> {
+  // Si le token initial dure plus d'un jour, c'est déjà un token long-lived.
+  if (initialExpiresIn > 86400) {
+    console.log('[IG] token déjà long-lived (' + initialExpiresIn + 's), pas d\'échange nécessaire');
+    return { accessToken: token, expiresIn: initialExpiresIn };
+  }
+  // Fallback : tenter ig_exchange_token (Basic Display API / legacy)
   const params = new URLSearchParams({
     grant_type: 'ig_exchange_token',
     client_secret: process.env.META_APP_SECRET!,
-    access_token: shortLivedToken,
+    access_token: token,
   });
   try {
-    // Instagram API with Instagram Login uses /oauth/access_token (not /access_token)
     const res = await fetch(`https://graph.instagram.com/oauth/access_token?${params.toString()}`);
     const data = await res.json();
     if (!res.ok || data.error) {
       console.warn(
-        '[IG] échange long-lived échoué, repli sur token court:',
+        '[IG] échange long-lived échoué, repli sur token initial:',
         JSON.stringify({ status: res.status, error: data.error ?? data }),
       );
-      return { accessToken: shortLivedToken, expiresIn: 5184000 };
+      return { accessToken: token, expiresIn: 5184000 };
     }
     return { accessToken: data.access_token as string, expiresIn: data.expires_in as number };
   } catch {
-    return { accessToken: shortLivedToken, expiresIn: 5184000 };
+    return { accessToken: token, expiresIn: 5184000 };
   }
 }
 
@@ -108,13 +125,12 @@ export interface InstagramUser {
 
 /**
  * Enrichissement du compte (username / name) via `/me`. **Non bloquant** : l'ID du compte
- * vient déjà du token (cf. exchangeCodeForToken), donc si `/me` échoue on renvoie `null` et
- * on logge l'erreur Graph COMPLÈTE — la connexion ne doit jamais casser à cause de ça.
+ * vient déjà du token, donc si `/me` échoue on renvoie `null` et on logge l'erreur complète.
  */
 export async function getInstagramUserInfo(token: string): Promise<InstagramUser | null> {
   try {
-    const params = new URLSearchParams({ fields: 'user_id,username', access_token: token });
-    // Instagram API with Instagram Login requires versioned endpoint
+    // `username` est la seule info que l'on récupère ici ; `user_id` vient du token exchange.
+    const params = new URLSearchParams({ fields: 'username', access_token: token });
     const res = await fetch(`https://graph.instagram.com/${GRAPH_API_VERSION}/me?${params.toString()}`);
     const data = await res.json();
     if (!res.ok || data.error) {
@@ -123,18 +139,6 @@ export async function getInstagramUserInfo(token: string): Promise<InstagramUser
         JSON.stringify({ httpStatus: res.status, error: data.error ?? data, tokenPrefix: token?.slice(0, 10) }),
       );
       return null;
-    }
-    // Best-effort : nom + photo (peuvent ne pas être supportés selon le compte).
-    try {
-      const extraParams = new URLSearchParams({ fields: 'name,profile_picture_url', access_token: token });
-      const extraRes = await fetch(`https://graph.instagram.com/${GRAPH_API_VERSION}/me?${extraParams.toString()}`);
-      const extra = await extraRes.json();
-      if (extraRes.ok && !extra.error) {
-        data.name = extra.name;
-        data.profile_picture_url = extra.profile_picture_url;
-      }
-    } catch {
-      /* champs optionnels indisponibles : on continue */
     }
     return data as InstagramUser;
   } catch (err) {
@@ -146,7 +150,6 @@ export async function getInstagramUserInfo(token: string): Promise<InstagramUser
 /** Abonne le compte aux webhooks (messages) — requis pour la capture des réels. */
 export async function subscribeToWebhooks(igUserId: string, accessToken: string): Promise<void> {
   try {
-    // Meta Graph API requires form-encoded body + access_token in query string
     const url = `https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/subscribed_apps?access_token=${encodeURIComponent(accessToken)}`;
     const res = await fetch(url, {
       method: 'POST',
