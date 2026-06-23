@@ -40,8 +40,15 @@ export function getLoginUrl(request: Request, state: string): string {
   return `https://www.instagram.com/oauth/authorize?${params.toString()}`;
 }
 
-/** Échange le code contre un jeton court. */
-export async function exchangeCodeForToken(request: Request, code: string): Promise<string> {
+/**
+ * Échange le code contre un jeton court.
+ * Renvoie AUSSI le `user_id` fourni par Instagram dans la réponse du token : c'est la
+ * source autoritaire de l'ID du compte, on n'a donc pas besoin de `/me` pour l'obtenir.
+ */
+export async function exchangeCodeForToken(
+  request: Request,
+  code: string,
+): Promise<{ accessToken: string; userId: string | null }> {
   const res = await fetch('https://api.instagram.com/oauth/access_token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -59,7 +66,10 @@ export async function exchangeCodeForToken(request: Request, code: string): Prom
       `Token exchange failed: ${data.error_message ?? data.error?.message ?? 'inconnu'}`,
     );
   }
-  return data.access_token as string;
+  return {
+    accessToken: data.access_token as string,
+    userId: data.user_id != null ? String(data.user_id) : null,
+  };
 }
 
 /** Échange le jeton court contre un jeton long (~60 j). Repli sur le court si échec. */
@@ -75,6 +85,10 @@ export async function exchangeForLongLivedToken(
     const res = await fetch(`https://graph.instagram.com/access_token?${params.toString()}`);
     const data = await res.json();
     if (!res.ok || data.error) {
+      console.warn(
+        '[IG] échange long-lived échoué, repli sur token court:',
+        JSON.stringify({ status: res.status, error: data.error ?? data }),
+      );
       return { accessToken: shortLivedToken, expiresIn: 5184000 };
     }
     return { accessToken: data.access_token as string, expiresIn: data.expires_in as number };
@@ -91,26 +105,40 @@ export interface InstagramUser {
   profile_picture_url?: string;
 }
 
-/** Infos du compte Instagram Business. */
-export async function getInstagramUserInfo(token: string): Promise<InstagramUser> {
-  const params = new URLSearchParams({ fields: 'user_id,username', access_token: token });
-  const res = await fetch(`https://graph.instagram.com/me?${params.toString()}`);
-  const data = await res.json();
-  if (!res.ok || data.error) {
-    throw new Error(`Infos Instagram: ${data.error?.message ?? 'inconnu'}`);
-  }
+/**
+ * Enrichissement du compte (username / name) via `/me`. **Non bloquant** : l'ID du compte
+ * vient déjà du token (cf. exchangeCodeForToken), donc si `/me` échoue on renvoie `null` et
+ * on logge l'erreur Graph COMPLÈTE — la connexion ne doit jamais casser à cause de ça.
+ */
+export async function getInstagramUserInfo(token: string): Promise<InstagramUser | null> {
   try {
-    const extraParams = new URLSearchParams({ fields: 'name,profile_picture_url', access_token: token });
-    const extraRes = await fetch(`https://graph.instagram.com/me?${extraParams.toString()}`);
-    const extra = await extraRes.json();
-    if (extraRes.ok && !extra.error) {
-      data.name = extra.name;
-      data.profile_picture_url = extra.profile_picture_url;
+    const params = new URLSearchParams({ fields: 'user_id,username', access_token: token });
+    const res = await fetch(`https://graph.instagram.com/me?${params.toString()}`);
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      console.error(
+        '[IG] /me a échoué (enrichissement ignoré):',
+        JSON.stringify({ httpStatus: res.status, error: data.error ?? data, tokenPrefix: token?.slice(0, 10) }),
+      );
+      return null;
     }
-  } catch {
-    /* champs optionnels indisponibles : on continue avec user_id + username */
+    // Best-effort : nom + photo (peuvent ne pas être supportés selon le compte).
+    try {
+      const extraParams = new URLSearchParams({ fields: 'name,profile_picture_url', access_token: token });
+      const extraRes = await fetch(`https://graph.instagram.com/me?${extraParams.toString()}`);
+      const extra = await extraRes.json();
+      if (extraRes.ok && !extra.error) {
+        data.name = extra.name;
+        data.profile_picture_url = extra.profile_picture_url;
+      }
+    } catch {
+      /* champs optionnels indisponibles : on continue */
+    }
+    return data as InstagramUser;
+  } catch (err) {
+    console.error('[IG] /me exception (enrichissement ignoré):', err);
+    return null;
   }
-  return data as InstagramUser;
 }
 
 /** Abonne le compte aux webhooks (messages) — requis pour la capture des réels. */

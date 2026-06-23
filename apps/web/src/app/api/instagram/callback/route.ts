@@ -44,11 +44,21 @@ export async function GET(request: Request) {
   if (!code || !state || !row) return done('state');
 
   try {
-    const shortToken = await exchangeCodeForToken(request, code);
+    const { accessToken: shortToken, userId: tokenUserId } = await exchangeCodeForToken(
+      request,
+      code,
+    );
     const { accessToken, expiresIn } = await exchangeForLongLivedToken(shortToken);
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+    // Enrichissement non bloquant (username/name). L'ID du compte vient EN PRIORITÉ du
+    // token (tokenUserId) ; `/me` n'est qu'un bonus et ne doit pas casser la connexion.
     const igUser = await getInstagramUserInfo(accessToken);
-    const igAccountId = igUser.user_id ?? igUser.id;
+    const igAccountId = tokenUserId ?? igUser?.user_id ?? igUser?.id ?? null;
+    if (!igAccountId) {
+      console.error('[IG callback] aucun ig_account_id (token ET /me vides)');
+      return done('exchange');
+    }
 
     // Une ligne existe déjà (créée à l'inscription) : on la met à jour, sinon insert.
     const { data: existing } = await admin
@@ -61,7 +71,7 @@ export async function GET(request: Request) {
 
     const patch = {
       ig_account_id: igAccountId,
-      ig_username: igUser.username ?? null,
+      ig_username: igUser?.username ?? null,
       access_token: accessToken,
       token_expires_at: expiresAt,
       status: 'active' as const,
