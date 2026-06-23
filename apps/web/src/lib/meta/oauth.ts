@@ -52,7 +52,7 @@ export function getLoginUrl(request: Request, state: string): string {
 export async function exchangeCodeForToken(
   request: Request,
   code: string,
-): Promise<{ accessToken: string; userId: string | null; expiresIn: number }> {
+): Promise<{ accessToken: string; userId: string | null }> {
   const res = await fetch('https://api.instagram.com/oauth/access_token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -70,49 +70,22 @@ export async function exchangeCodeForToken(
       `Token exchange failed: ${data.error_message ?? data.error?.message ?? 'inconnu'}`,
     );
   }
-  console.log('[IG] token exchange OK, expires_in:', data.expires_in, 'user_id:', data.user_id);
+  console.log('[IG] token exchange OK, user_id:', data.user_id, 'permissions:', data.permissions);
   return {
     accessToken: data.access_token as string,
     userId: data.user_id != null ? String(data.user_id) : null,
-    // expires_in présent si déjà long-lived (≥86400s = 1 jour) ; sinon 0
-    expiresIn: typeof data.expires_in === 'number' ? data.expires_in : 0,
   };
 }
 
 /**
- * Tente d'échanger vers un token long (~60 j) si le token initial est court (< 1 h).
- * Pour Instagram API with Instagram Login, le token est déjà long-lived — on le passe
- * tel quel. L'échange ig_exchange_token ne s'applique qu'à l'ancienne Basic Display API.
+ * Instagram API with Instagram Login émet un token valide ~60 jours directement depuis
+ * api.instagram.com/oauth/access_token — pas besoin d'échange ig_exchange_token.
+ * On le passe tel quel avec une durée de 60 jours (5 184 000 s).
  */
 export async function exchangeForLongLivedToken(
   token: string,
-  initialExpiresIn: number,
 ): Promise<{ accessToken: string; expiresIn: number }> {
-  // Si le token initial dure plus d'un jour, c'est déjà un token long-lived.
-  if (initialExpiresIn > 86400) {
-    console.log('[IG] token déjà long-lived (' + initialExpiresIn + 's), pas d\'échange nécessaire');
-    return { accessToken: token, expiresIn: initialExpiresIn };
-  }
-  // Fallback : tenter ig_exchange_token (Basic Display API / legacy)
-  const params = new URLSearchParams({
-    grant_type: 'ig_exchange_token',
-    client_secret: process.env.META_APP_SECRET!,
-    access_token: token,
-  });
-  try {
-    const res = await fetch(`https://graph.instagram.com/oauth/access_token?${params.toString()}`);
-    const data = await res.json();
-    if (!res.ok || data.error) {
-      console.warn(
-        '[IG] échange long-lived échoué, repli sur token initial:',
-        JSON.stringify({ status: res.status, error: data.error ?? data }),
-      );
-      return { accessToken: token, expiresIn: 5184000 };
-    }
-    return { accessToken: data.access_token as string, expiresIn: data.expires_in as number };
-  } catch {
-    return { accessToken: token, expiresIn: 5184000 };
-  }
+  return { accessToken: token, expiresIn: 5184000 };
 }
 
 export interface InstagramUser {
