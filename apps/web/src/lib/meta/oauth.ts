@@ -82,7 +82,8 @@ export async function exchangeForLongLivedToken(
     access_token: shortLivedToken,
   });
   try {
-    const res = await fetch(`https://graph.instagram.com/access_token?${params.toString()}`);
+    // Instagram API with Instagram Login uses /oauth/access_token (not /access_token)
+    const res = await fetch(`https://graph.instagram.com/oauth/access_token?${params.toString()}`);
     const data = await res.json();
     if (!res.ok || data.error) {
       console.warn(
@@ -113,7 +114,8 @@ export interface InstagramUser {
 export async function getInstagramUserInfo(token: string): Promise<InstagramUser | null> {
   try {
     const params = new URLSearchParams({ fields: 'user_id,username', access_token: token });
-    const res = await fetch(`https://graph.instagram.com/me?${params.toString()}`);
+    // Instagram API with Instagram Login requires versioned endpoint
+    const res = await fetch(`https://graph.instagram.com/${GRAPH_API_VERSION}/me?${params.toString()}`);
     const data = await res.json();
     if (!res.ok || data.error) {
       console.error(
@@ -125,7 +127,7 @@ export async function getInstagramUserInfo(token: string): Promise<InstagramUser
     // Best-effort : nom + photo (peuvent ne pas être supportés selon le compte).
     try {
       const extraParams = new URLSearchParams({ fields: 'name,profile_picture_url', access_token: token });
-      const extraRes = await fetch(`https://graph.instagram.com/me?${extraParams.toString()}`);
+      const extraRes = await fetch(`https://graph.instagram.com/${GRAPH_API_VERSION}/me?${extraParams.toString()}`);
       const extra = await extraRes.json();
       if (extraRes.ok && !extra.error) {
         data.name = extra.name;
@@ -144,14 +146,13 @@ export async function getInstagramUserInfo(token: string): Promise<InstagramUser
 /** Abonne le compte aux webhooks (messages) — requis pour la capture des réels. */
 export async function subscribeToWebhooks(igUserId: string, accessToken: string): Promise<void> {
   try {
-    const res = await fetch(
-      `https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/subscribed_apps`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscribed_fields: 'messages', access_token: accessToken }),
-      },
-    );
+    // Meta Graph API requires form-encoded body + access_token in query string
+    const url = `https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/subscribed_apps?access_token=${encodeURIComponent(accessToken)}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ subscribed_fields: 'messages' }).toString(),
+    });
     const data = await res.json();
     if (!data.success) console.warn('[IG] subscription webhook échouée:', data);
   } catch (err) {
