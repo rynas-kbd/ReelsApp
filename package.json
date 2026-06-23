@@ -8,7 +8,6 @@
     "apps/*"
   ],
   "scripts": {
-    "postinstall": "node scripts/patch-android-widget.js",
     "web": "npm run dev --workspace @reelvault/web",
     "mobile": "npm run start --workspace @reelvault/mobile",
     "db:reset": "supabase db reset",
