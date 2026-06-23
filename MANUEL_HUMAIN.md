@@ -193,15 +193,15 @@ peuvent rester, ils sont ignorés.)
 **A. Variables d'environnement à poser sur Vercel** (projet `reels-web-app` → Settings → Environment Variables) :
 | Variable | Valeur |
 |---|---|
-| `META_APP_ID` | `1523515752503377` |
-| `META_APP_SECRET` | (App Secret de l'app Meta de ReelVault) |
-| `NEXT_PUBLIC_META_APP_ID` | `1523515752503377` |
+| `META_APP_ID` | `949431988104717` |
+| `META_APP_SECRET` | (App Secret de la nouvelle app Meta ReelVault) |
+| `NEXT_PUBLIC_META_APP_ID` | `949431988104717` |
 | `NEXT_PUBLIC_SITE_URL` | `https://reels-web-app.vercel.app` |
 | `SUPABASE_SERVICE_ROLE_KEY` | (clé service_role du projet Supabase) |
 
 Puis **redeploy** (Vercel → Deployments → Redeploy) pour que les routes prennent les variables.
 
-**B. Enregistrer la redirect URI dans Meta** (app `1523515752503377`) :
+**B. Enregistrer la redirect URI dans Meta** (app `949431988104717`) :
 1. App Meta → **Instagram → API setup with Instagram login** → réglages OAuth (Business login).
 2. Dans **« Valid OAuth Redirect URIs »**, ajoute exactement :
    ```
