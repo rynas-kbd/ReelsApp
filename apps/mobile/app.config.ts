@@ -13,14 +13,21 @@ import { withGradleProperties } from '@expo/config-plugins';
 const withHighMemoryGradle = (cfg: ExpoConfig): ExpoConfig =>
   withGradleProperties(cfg, config => {
     const props = config.modResults;
-    const key = 'org.gradle.jvmargs';
-    const value = '-Xmx4096m -XX:MaxMetaspaceSize=512m';
-    const idx = props.findIndex(p => p.type === 'property' && p.key === key);
-    if (idx !== -1) {
-      (props[idx] as { type: 'property'; key: string; value: string }).value = value;
-    } else {
-      props.push({ type: 'property', key, value });
-    }
+
+    const set = (key: string, value: string) => {
+      const idx = props.findIndex(p => p.type === 'property' && p.key === key);
+      if (idx !== -1) {
+        (props[idx] as { type: 'property'; key: string; value: string }).value = value;
+      } else {
+        props.push({ type: 'property', key, value });
+      }
+    };
+
+    // 4 Go de JVM pour éviter les OOM sur le build de release.
+    set('org.gradle.jvmargs', '-Xmx4096m -XX:MaxMetaspaceSize=512m');
+    // Preview APK : arm64-v8a uniquement (physique moderne). Réduit la charge ×4.
+    set('reactNativeArchitectures', 'arm64-v8a');
+
     return config;
   });
 
