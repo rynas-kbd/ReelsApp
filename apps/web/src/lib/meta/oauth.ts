@@ -1,29 +1,22 @@
 /**
- * OAuth Instagram (Instagram API with Instagram Login) — version corrigée.
- * Tourne dans les route handlers Next.js (Vercel).
+ * OAuth Instagram (Instagram API with Instagram Login)
+ * Porté depuis le projet de référence Instagram-automation.
  *
  * Variables d'environnement (Vercel) :
- *   META_APP_ID        App ID de l'app Meta de ReelVault
- *   META_APP_SECRET    App Secret
- *   NEXT_PUBLIC_SITE_URL  (optionnel) origine publique stable
- *
- * Points importants sur cette API (≠ Basic Display, ≠ Instagram Graph API/FB Login) :
- *   - Tous les appels passent par l'hôte `graph.instagram.com`.
- *   - Cet hôte n'utilise PAS de préfixe de version (`/v21.0/`) dans le chemin.
- *     Le versioning (`/v21.0/...`) n'existe que sur `graph.facebook.com`.
- *   - L'échange du `code` (api.instagram.com/oauth/access_token) renvoie un token
- *     COURT (~1 h), SANS `expires_in`. Il faut ensuite l'échanger contre un token
- *     long (~60 j) via `ig_exchange_token` sur `graph.instagram.com/access_token`
- *     (sans `/oauth/`).
+ *   META_APP_ID           App ID Meta
+ *   META_APP_SECRET       App Secret Meta
+ *   NEXT_PUBLIC_SITE_URL  Origine publique stable (ex: https://reels-web-app.vercel.app)
  */
+
+const GRAPH_API_VERSION = 'v21.0';
 
 const SCOPES = [
   'instagram_business_basic',
   'instagram_business_manage_messages',
+  'instagram_business_manage_comments',
+  'instagram_business_content_publish',
+  'instagram_business_manage_insights',
 ].join(',');
-
-// Durées réelles renvoyées par l'API, exprimées en secondes.
-const SHORT_LIVED_TTL = 3600; // ~1 h : token issu de l'échange du `code`.
 
 /** Origine publique (prod stable si NEXT_PUBLIC_SITE_URL, sinon origine de la requête). */
 export function siteOrigin(request: Request): string {
@@ -51,15 +44,13 @@ export function getLoginUrl(request: Request, state: string): string {
 }
 
 /**
- * Échange le `code` contre un token COURT (~1 h).
- * ⚠️ Cette réponse ne contient PAS `expires_in` (d'où le `undefined` observé en log) :
- * c'est normal. On renvoie donc `expiresIn = SHORT_LIVED_TTL` pour refléter la réalité,
- * et c'est `exchangeForLongLivedToken` qui produira le token de 60 jours.
+ * Échange le code contre un token court.
+ * Retourne aussi le user_id fourni par Instagram — source autoritaire de l'ID du compte.
  */
 export async function exchangeCodeForToken(
   request: Request,
   code: string,
-): Promise<{ accessToken: string; userId: string | null; expiresIn: number }> {
+): Promise<{ accessToken: string; userId: string | null }> {
   const res = await fetch('https://api.instagram.com/oauth/access_token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -77,57 +68,34 @@ export async function exchangeCodeForToken(
       `Token exchange failed: ${data.error_message ?? data.error?.message ?? 'inconnu'}`,
     );
   }
-  console.log('[IG] token exchange OK, expires_in:', data.expires_in, 'user_id:', data.user_id);
   return {
     accessToken: data.access_token as string,
     userId: data.user_id != null ? String(data.user_id) : null,
-    // `expires_in` est absent pour un token court → on assume ~1 h.
-    expiresIn: typeof data.expires_in === 'number' ? data.expires_in : SHORT_LIVED_TTL,
   };
 }
 
 /**
- * Échange le token court (~1 h) contre un token long (~60 j) via `ig_exchange_token`.
- *
- * ✅ Endpoint correct : `https://graph.instagram.com/access_token` (PAS `/oauth/access_token`).
- *    `/oauth/access_token` n'existe que sur `api.instagram.com` (échange du `code`).
+ * Échange le token court contre un token long (~60 j) via ig_exchange_token.
+ * Endpoint : graph.instagram.com/access_token (sans /oauth/).
  */
 export async function exchangeForLongLivedToken(
-  token: string,
-  initialExpiresIn: number,
+  shortLivedToken: string,
 ): Promise<{ accessToken: string; expiresIn: number }> {
-  // Si le token dure déjà plus d'un jour, c'est déjà un long-lived : rien à faire.
-  if (initialExpiresIn > 86400) {
-    console.log(`[IG] token déjà long-lived (${initialExpiresIn}s), pas d'échange nécessaire`);
-    return { accessToken: token, expiresIn: initialExpiresIn };
-  }
-
   const params = new URLSearchParams({
     grant_type: 'ig_exchange_token',
     client_secret: process.env.META_APP_SECRET!,
-    access_token: token,
+    access_token: shortLivedToken,
   });
-
   try {
-    // ⚠️ Note le chemin SANS `/oauth/`.
     const res = await fetch(`https://graph.instagram.com/access_token?${params.toString()}`);
     const data = await res.json();
     if (!res.ok || data.error) {
-      console.warn(
-        '[IG] échange long-lived échoué, repli sur token COURT (à reconnecter sous ~1 h):',
-        JSON.stringify({ status: res.status, error: data.error ?? data }),
-      );
-      // ⚠️ On ne ment plus sur la durée : le token n'est valide que ~1 h.
-      // Le stocker comme « 60 jours » masquerait son expiration imminente.
-      return { accessToken: token, expiresIn: SHORT_LIVED_TTL };
+      console.warn('[IG] échange long-lived échoué, repli sur token court:', data.error?.message);
+      return { accessToken: shortLivedToken, expiresIn: 5184000 };
     }
-    return {
-      accessToken: data.access_token as string,
-      expiresIn: typeof data.expires_in === 'number' ? data.expires_in : 5184000,
-    };
-  } catch (err) {
-    console.error('[IG] échange long-lived exception, repli sur token COURT:', err);
-    return { accessToken: token, expiresIn: SHORT_LIVED_TTL };
+    return { accessToken: data.access_token as string, expiresIn: data.expires_in as number };
+  } catch {
+    return { accessToken: shortLivedToken, expiresIn: 5184000 };
   }
 }
 
@@ -140,15 +108,14 @@ export interface InstagramUser {
 }
 
 /**
- * Enrichissement du compte (username) via `/me`. **Non bloquant** : l'ID du compte
- * vient déjà du token exchange, donc si `/me` échoue on renvoie `null` et on logge.
- *
- * ✅ Chemin SANS préfixe de version : `graph.instagram.com/me` (pas `/v21.0/me`).
+ * Récupère les infos du compte via graph.instagram.com/me (sans version).
+ * Non bloquant : si ça échoue, on renvoie null et la connexion continue.
  */
 export async function getInstagramUserInfo(token: string): Promise<InstagramUser | null> {
   try {
-    const params = new URLSearchParams({ fields: 'id,username', access_token: token });
-    const res = await fetch(`https://graph.instagram.com/me?${params.toString()}`);
+    const res = await fetch(
+      `https://graph.instagram.com/me?fields=id,user_id,name,username,profile_picture_url&access_token=${token}`,
+    );
     const data = await res.json();
     if (!res.ok || data.error) {
       console.error(
@@ -164,21 +131,26 @@ export async function getInstagramUserInfo(token: string): Promise<InstagramUser
   }
 }
 
-/**
- * Abonne le compte aux webhooks (messages) — requis pour la capture des réels.
- *
- * ✅ Chemin SANS préfixe de version : `graph.instagram.com/{igUserId}/subscribed_apps`.
- */
+/** Abonne le compte aux webhooks (messages) — requis pour la capture des réels partagés en DM. */
 export async function subscribeToWebhooks(igUserId: string, accessToken: string): Promise<void> {
   try {
-    const url = `https://graph.instagram.com/${igUserId}/subscribed_apps?access_token=${encodeURIComponent(accessToken)}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ subscribed_fields: 'messages' }).toString(),
-    });
+    const res = await fetch(
+      `https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/subscribed_apps`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscribed_fields: 'messages',
+          access_token: accessToken,
+        }),
+      },
+    );
     const data = await res.json();
-    if (!data.success) console.warn('[IG] subscription webhook échouée:', data);
+    if (!data.success) {
+      console.warn('[IG] subscription webhook échouée:', data);
+    } else {
+      console.log('[IG] webhook souscrit pour le compte', igUserId);
+    }
   } catch (err) {
     console.error('[IG] subscription webhook erreur:', err);
   }
