@@ -44,8 +44,12 @@ export async function GET(request: Request) {
   if (!code || !state || !row) return done('state');
 
   try {
-    const { accessToken: shortToken, userId: tokenUserId } = await exchangeCodeForToken(request, code);
-    const { accessToken, expiresIn } = await exchangeForLongLivedToken(shortToken);
+    const {
+      accessToken: shortToken,
+      userId: tokenUserId,
+      expiresIn: initialExpiresIn,
+    } = await exchangeCodeForToken(request, code);
+    const { accessToken, expiresIn } = await exchangeForLongLivedToken(shortToken, initialExpiresIn);
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
     // Enrichissement non bloquant (username/name). L'ID du compte vient EN PRIORITÉ du
