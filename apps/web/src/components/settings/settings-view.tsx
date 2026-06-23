@@ -14,6 +14,7 @@ import {
   type Profile,
 } from '@reelvault/shared';
 import { ProfileCard } from '@/components/settings/profile-card';
+import { DeleteAccountCard } from '@/components/settings/delete-account-card';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -301,6 +302,9 @@ export function SettingsView({ userId }: { userId: string }) {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Zone de danger */}
+      <DeleteAccountCard />
     </div>
   );
 }

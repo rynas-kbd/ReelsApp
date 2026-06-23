@@ -121,7 +121,7 @@ async function handlePayload(supabase: ReturnType<typeof adminClient>, payload: 
       const text = evt.message?.text?.trim();
 
       // 1) Jumelage du compte principal : le texte correspond-il à un code de jumelage ?
-      if (text && senderId && (await tryPairSender(supabase, text, senderId))) continue;
+      if (text && senderId && (await tryPairSender(supabase, text, senderId, businessAccountId))) continue;
 
       // 2) Activation legacy (code d'activation tapé, avant l'OAuth).
       if (text && (await tryActivate(supabase, text, businessAccountId))) continue;
@@ -140,6 +140,7 @@ async function tryPairSender(
   supabase: ReturnType<typeof adminClient>,
   text: string,
   senderId: string,
+  businessAccountId?: string,
 ): Promise<boolean> {
   const code = text.toUpperCase();
   const { data: conn } = await supabase
@@ -151,7 +152,12 @@ async function tryPairSender(
 
   await supabase
     .from('instagram_connections')
-    .update({ sender_id: senderId, sender_paired_at: new Date().toISOString() })
+    .update({
+      sender_id: senderId,
+      sender_paired_at: new Date().toISOString(),
+      // Enregistre l'IGSID de messagerie (recipient.id du webhook) — différent du user_id OAuth.
+      ig_messaging_id: businessAccountId ?? null,
+    })
     .eq('id', conn.id);
   return true;
 }
@@ -189,10 +195,12 @@ async function tryCaptureReel(
   if (!businessAccountId) return;
 
   // Trouve l'utilisateur ReelVault propriétaire du compte connecté.
+  // On cherche d'abord par ig_messaging_id (IGSID, appris au jumelage), puis par ig_account_id
+  // (user_id OAuth, présent dès la connexion mais différent de l'IGSID — rétro-compat).
   const { data: conn } = await supabase
     .from('instagram_connections')
     .select('user_id, status, sender_id')
-    .eq('ig_account_id', businessAccountId)
+    .or(`ig_messaging_id.eq.${businessAccountId},ig_account_id.eq.${businessAccountId}`)
     .eq('status', 'active')
     .maybeSingle();
   if (!conn) return;
