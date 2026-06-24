@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { FileDown, FileText, Instagram, Loader2, LogOut, Moon } from 'lucide-react';
+import { FileDown, FileText, Instagram, Loader2, LogOut, Moon, RefreshCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   STRINGS,
@@ -40,6 +40,7 @@ export function SettingsView({ userId }: { userId: string }) {
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [exporting, setExporting] = useState<'csv' | 'pdf' | null>(null);
+  const [reprocessing, setReprocessing] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -134,6 +135,33 @@ export function SettingsView({ userId }: { userId: string }) {
       toast.error(STRINGS.common.error);
     } finally {
       setExporting(null);
+    }
+  }
+
+  async function reprocessLibrary() {
+    if (!window.confirm(STRINGS.reprocess.buttonHelp + '\n\nContinuer ?')) return;
+    setReprocessing(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/reprocess-library`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session?.access_token ?? ''}`,
+          },
+          body: JSON.stringify({ user_id: userId }),
+        },
+      );
+      if (!res.ok) throw new Error();
+      toast.success(STRINGS.reprocess.done);
+    } catch {
+      toast.error(STRINGS.reprocess.error);
+    } finally {
+      setReprocessing(false);
     }
   }
 
@@ -299,6 +327,20 @@ export function SettingsView({ userId }: { userId: string }) {
           <Button variant="secondary" onClick={exportPdf} disabled={exporting !== null}>
             {exporting === 'pdf' ? <Loader2 className="animate-spin" /> : <FileText />}
             {STRINGS.settings.exportPdf}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Re-classement IA */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{STRINGS.reprocess.buttonLabel}</CardTitle>
+          <CardDescription>{STRINGS.reprocess.buttonHelp}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="secondary" onClick={reprocessLibrary} disabled={reprocessing}>
+            {reprocessing ? <Loader2 className="animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+            {reprocessing ? STRINGS.reprocess.running : STRINGS.reprocess.buttonLabel}
           </Button>
         </CardContent>
       </Card>

@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   ApiKeyProvider,
   Category,
+  CategoryWithChildren,
   Digest,
   DigestWithReels,
   InstagramConnection,
@@ -16,7 +17,7 @@ import type {
 } from './types';
 
 const REEL_SELECT =
-  '*, category:categories(id, name, slug, color, icon)';
+  '*, category:categories(id, name, slug, color, icon, parent_id, parent:parent_id(id, name, slug, color))';
 
 /** Récupère les réels avec filtres + recherche. */
 export async function fetchReels(
@@ -26,14 +27,19 @@ export async function fetchReels(
 ): Promise<ReelWithCategory[]> {
   let query = supabase.from('reels').select(REEL_SELECT).range(offset, offset + limit - 1);
 
-  if (filters.categoryId) query = query.eq('category_id', filters.categoryId);
+  if (filters.categoryIds?.length) {
+    query = query.in('category_id', filters.categoryIds);
+  } else if (filters.categoryId) {
+    query = query.eq('category_id', filters.categoryId);
+  }
+  if (filters.tags?.length) query = query.overlaps('tags', filters.tags);
   if (filters.authorUsername) query = query.eq('author_username', filters.authorUsername);
   if (filters.dateFrom) query = query.gte('added_at', filters.dateFrom);
   if (filters.dateTo) query = query.lte('added_at', filters.dateTo);
   if (filters.search) {
     const s = `%${filters.search}%`;
     query = query.or(
-      `title.ilike.${s},caption.ilike.${s},author_username.ilike.${s},author_name.ilike.${s}`,
+      `title.ilike.${s},caption.ilike.${s},author_username.ilike.${s},author_name.ilike.${s},summary.ilike.${s}`,
     );
   }
 
@@ -62,18 +68,134 @@ export async function fetchCategories(supabase: SupabaseClient): Promise<Categor
   return (data ?? []) as Category[];
 }
 
-/** Compte de réels par catégorie (pour les badges de la sidebar). */
+/**
+ * Renvoie les catégories sous forme d'arbre (racines avec leurs enfants).
+ * Utile pour la sidebar hiérarchique et la gestion des catégories.
+ */
+export async function fetchCategoryTree(supabase: SupabaseClient): Promise<CategoryWithChildren[]> {
+  const cats = await fetchCategories(supabase);
+  const childrenMap = new Map<string, Category[]>();
+  const roots: Category[] = [];
+
+  for (const cat of cats) {
+    if (cat.parent_id === null) {
+      roots.push(cat);
+    } else {
+      const list = childrenMap.get(cat.parent_id) ?? [];
+      list.push(cat);
+      childrenMap.set(cat.parent_id, list);
+    }
+  }
+
+  return roots.map((r) => ({ ...r, children: childrenMap.get(r.id) ?? [] }));
+}
+
+/** Compte de réels par catégorie (agrège les enfants dans le total de la racine). */
 export async function fetchCategoryCounts(
   supabase: SupabaseClient,
 ): Promise<Record<string, number>> {
-  const { data, error } = await supabase.from('reels').select('category_id');
-  if (error) throw error;
-  const counts: Record<string, number> = {};
-  for (const row of data ?? []) {
+  const [reelRows, cats] = await Promise.all([
+    supabase.from('reels').select('category_id'),
+    fetchCategories(supabase),
+  ]);
+  if (reelRows.error) throw reelRows.error;
+
+  // Comptage direct
+  const direct: Record<string, number> = {};
+  for (const row of reelRows.data ?? []) {
     const id = (row as { category_id: string | null }).category_id ?? 'none';
-    counts[id] = (counts[id] ?? 0) + 1;
+    direct[id] = (direct[id] ?? 0) + 1;
   }
+
+  // Propagation vers les racines (sous-catégories → racine)
+  const parentOf = new Map<string, string | null>();
+  for (const cat of cats) parentOf.set(cat.id, cat.parent_id);
+
+  const counts: Record<string, number> = { ...direct };
+  for (const [id, cnt] of Object.entries(direct)) {
+    const parentId = parentOf.get(id);
+    if (parentId) {
+      counts[parentId] = (counts[parentId] ?? 0) + cnt;
+    }
+  }
+
   return counts;
+}
+
+/** Tags distincts de la bibliothèque (pour les chips de filtre). */
+export async function fetchAllTags(supabase: SupabaseClient): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('reels')
+    .select('tags')
+    .not('tags', 'eq', '{}');
+  if (error) throw error;
+  const tagSet = new Set<string>();
+  for (const row of (data ?? []) as { tags: string[] }[]) {
+    for (const t of row.tags) if (t) tagSet.add(t);
+  }
+  return [...tagSet].sort();
+}
+
+/** Crée une nouvelle catégorie. */
+export async function createCategory(
+  supabase: SupabaseClient,
+  name: string,
+  options?: { parentId?: string | null; color?: string; icon?: string },
+): Promise<Category> {
+  const { data, error } = await supabase
+    .from('categories')
+    .insert({
+      name: name.trim(),
+      slug: slugifyClient(name),
+      color: options?.color ?? '#7C3AED',
+      icon: options?.icon ?? null,
+      parent_id: options?.parentId ?? null,
+      is_default: false,
+    })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data as Category;
+}
+
+/** Met à jour le nom/couleur/parent d'une catégorie. */
+export async function updateCategory(
+  supabase: SupabaseClient,
+  id: string,
+  patch: Partial<Pick<Category, 'name' | 'color' | 'icon' | 'parent_id'>>,
+): Promise<void> {
+  const update: Record<string, unknown> = { ...patch };
+  if (patch.name) update.slug = slugifyClient(patch.name);
+  const { error } = await supabase.from('categories').update(update).eq('id', id);
+  if (error) throw error;
+}
+
+/** Supprime une catégorie (les réels seront déclassés via ON DELETE SET NULL). */
+export async function deleteCategory(supabase: SupabaseClient, id: string): Promise<void> {
+  const { error } = await supabase.from('categories').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/** Fusionne deux catégories (RPC merge_categories). */
+export async function mergeCategories(
+  supabase: SupabaseClient,
+  srcId: string,
+  dstId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('merge_categories', { p_src: srcId, p_dst: dstId });
+  if (error) throw error;
+}
+
+function slugifyClient(input: string): string {
+  return input
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, ' et ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
 }
 
 export async function fetchProfile(supabase: SupabaseClient, userId: string): Promise<Profile | null> {

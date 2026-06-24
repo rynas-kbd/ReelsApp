@@ -3,7 +3,7 @@
 // propriétaire du réel, et basculent sur la suivante en cas de quota (429).
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 
-export type Provider = 'gemini' | 'rapidapi';
+export type Provider = 'gemini' | 'rapidapi' | 'groq';
 
 export interface ApiKey {
   id: string | null; // null = clé d'environnement (repli), pas de cooldown persistant
@@ -39,6 +39,8 @@ export async function getApiKeys(
 
   const envKey = provider === 'gemini'
     ? Deno.env.get('GEMINI_API_KEY')
+    : provider === 'groq'
+    ? Deno.env.get('GROQ_API_KEY')
     : Deno.env.get('RAPIDAPI_KEY');
 
   const list: ApiKey[] = ready.map((r) => ({ id: r.id, key: r.key }));

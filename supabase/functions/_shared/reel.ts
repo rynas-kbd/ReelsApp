@@ -1,5 +1,6 @@
 // Utilitaires réels partagés par les Edge Functions (Deno, sans accès aux packages npm du monorepo).
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import type { CategoryNode } from './classify.ts';
 
 const IG_HOSTS = ['instagram.com', 'www.instagram.com', 'instagr.am'];
 
@@ -53,21 +54,35 @@ export function pickColor(name: string): string {
   return PALETTE[hash % PALETTE.length];
 }
 
-/** Trouve une catégorie par nom (insensible casse) ou la crée pour cet utilisateur. */
+/**
+ * Trouve une catégorie par slug (et parent_id) ou la crée pour cet utilisateur.
+ * @param parentId  null = catégorie racine ; uuid = sous-catégorie sous ce parent.
+ */
 export async function findOrCreateCategory(
   supabase: SupabaseClient,
   userId: string,
   name: string,
+  parentId: string | null = null,
 ): Promise<string> {
   const slug = slugify(name);
-  const { data: existing } = await supabase
+
+  // Recherche : racine (parent_id IS NULL) ou enfant (parent_id = parentId)
+  let lookup = supabase
     .from('categories')
     .select('id')
     .eq('user_id', userId)
-    .eq('slug', slug)
-    .maybeSingle();
+    .eq('slug', slug);
+
+  if (parentId === null) {
+    lookup = lookup.is('parent_id', null);
+  } else {
+    lookup = lookup.eq('parent_id', parentId);
+  }
+
+  const { data: existing } = await lookup.maybeSingle();
   if (existing) return existing.id as string;
 
+  // Ordre d'insertion : max sort_order + 1
   const { data: maxRow } = await supabase
     .from('categories')
     .select('sort_order')
@@ -79,9 +94,51 @@ export async function findOrCreateCategory(
 
   const { data: created, error } = await supabase
     .from('categories')
-    .insert({ user_id: userId, name, slug, color: pickColor(name), is_default: false, sort_order })
+    .insert({
+      user_id: userId,
+      name,
+      slug,
+      color: pickColor(name),
+      is_default: false,
+      sort_order,
+      parent_id: parentId,
+    })
     .select('id')
     .single();
   if (error) throw error;
   return created.id as string;
+}
+
+/**
+ * Charge l'arbre des catégories de l'utilisateur (racines + leurs enfants directs).
+ * Utilisé pour construire le contexte du prompt Gemini.
+ */
+export async function fetchCategoryTree(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<CategoryNode[]> {
+  const { data: cats } = await supabase
+    .from('categories')
+    .select('id, name, parent_id')
+    .eq('user_id', userId)
+    .order('sort_order', { ascending: true });
+
+  const rows = (cats ?? []) as Array<{ id: string; name: string; parent_id: string | null }>;
+  const childrenByParent = new Map<string, string[]>();
+  const roots: Array<{ id: string; name: string }> = [];
+
+  for (const row of rows) {
+    if (row.parent_id === null) {
+      roots.push({ id: row.id, name: row.name });
+    } else {
+      const list = childrenByParent.get(row.parent_id) ?? [];
+      list.push(row.name);
+      childrenByParent.set(row.parent_id, list);
+    }
+  }
+
+  return roots.map((r) => ({
+    name: r.name,
+    children: childrenByParent.get(r.id) ?? [],
+  }));
 }

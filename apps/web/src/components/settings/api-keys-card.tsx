@@ -22,13 +22,14 @@ import { Badge } from '@/components/ui/badge';
 const PROVIDERS: { id: ApiKeyProvider; label: string; help: string }[] = [
   { id: 'gemini', label: STRINGS.apiKeys.gemini, help: STRINGS.apiKeys.geminiHelp },
   { id: 'rapidapi', label: STRINGS.apiKeys.rapidapi, help: STRINGS.apiKeys.rapidapiHelp },
+  { id: 'groq', label: STRINGS.apiKeys.groq, help: STRINGS.apiKeys.groqHelp },
 ];
 
 export function ApiKeysCard({ userId }: { userId: string }) {
   const supabase = useMemo(() => createClient(), []);
   const [keys, setKeys] = useState<UserApiKey[]>([]);
   const [loading, setLoading] = useState(true);
-  const [drafts, setDrafts] = useState<Record<ApiKeyProvider, string>>({ gemini: '', rapidapi: '' });
+  const [drafts, setDrafts] = useState<Record<ApiKeyProvider, string>>({ gemini: '', rapidapi: '', groq: '' });
   const [saving, setSaving] = useState<ApiKeyProvider | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 

@@ -56,7 +56,13 @@ export interface Category {
   icon: string | null;
   is_default: boolean;
   sort_order: number;
+  parent_id: string | null;
   created_at: string;
+}
+
+/** Catégorie racine avec ses sous-catégories (pour la navigation en arbre). */
+export interface CategoryWithChildren extends Category {
+  children: Category[];
 }
 
 export interface Reel {
@@ -75,11 +81,21 @@ export interface Reel {
   view_count: number;
   added_at: string;
   raw_metadata: Record<string, unknown> | null;
+  // Champs avancés (migration 0012)
+  tags: string[];
+  summary: string | null;
+  transcript: string | null;
+  media_type: 'video' | 'image' | null;
 }
 
-/** Reel + sa catégorie jointe (vue d'affichage). */
+/** Catégorie partielle pour l'affichage (jointe sur reels). */
+export type CategoryRef = Pick<Category, 'id' | 'name' | 'slug' | 'color' | 'icon' | 'parent_id'> & {
+  parent: Pick<Category, 'id' | 'name' | 'slug' | 'color'> | null;
+};
+
+/** Reel + sa catégorie jointe avec le parent (vue d'affichage). */
 export interface ReelWithCategory extends Reel {
-  category: Pick<Category, 'id' | 'name' | 'slug' | 'color' | 'icon'> | null;
+  category: CategoryRef | null;
 }
 
 export interface InstagramConnection {
@@ -101,7 +117,7 @@ export interface InstagramConnection {
   sender_paired_at: string | null;
 }
 
-export type ApiKeyProvider = 'gemini' | 'rapidapi';
+export type ApiKeyProvider = 'gemini' | 'rapidapi' | 'groq';
 
 export interface UserApiKey {
   id: string;
@@ -126,6 +142,8 @@ export interface ReelView {
 export interface LibraryFilters {
   search?: string;
   categoryId?: string | null;
+  categoryIds?: string[] | null;  // plusieurs catégories (racine + enfants)
+  tags?: string[];                // filtre multi-tags (overlaps)
   authorUsername?: string | null;
   dateFrom?: string | null;
   dateTo?: string | null;

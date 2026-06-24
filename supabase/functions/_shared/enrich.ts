@@ -8,8 +8,11 @@ import { reelUrl } from './reel.ts';
 export interface ReelMetadata {
   thumbnail_url: string | null;
   title: string | null;
+  caption: string | null;         // légende complète (incluant les hashtags)
   author_username: string | null;
   author_name: string | null;
+  media_type: 'video' | 'image';  // type détecté depuis la présence d'une URL vidéo
+  image_urls: string[];           // URLs des images (post photo ou carrousel)
   raw: Record<string, unknown> | null;
 }
 
@@ -52,6 +55,33 @@ export async function fetchReelMetadata(
     const meta = (item.meta ?? {}) as Record<string, unknown>;
     const pictureUrl = (item.pictureUrl as string) ?? null;
     const username = (meta.username as string) ?? null;
+
+    // Légende complète : essayer les champs courants de l'API
+    const rawCaption = (
+      (meta.caption as string) ??
+      (meta.text as string) ??
+      (meta.description as string) ??
+      (meta.title as string) ??
+      null
+    );
+
+    // URL de la vidéo (premier élément de `urls`)
+    const videoUrl = (item.urls as Array<{ url?: string }>)?.[0]?.url ?? null;
+
+    // Type de média
+    const media_type: 'video' | 'image' = videoUrl ? 'video' : 'image';
+
+    // URLs des images (pour les posts photo / carrousel)
+    // Certaines APIs renvoient item.images (tableau) ou item.pictureUrl (unique)
+    const imageUrls: string[] = [];
+    if (Array.isArray(item.images)) {
+      for (const img of item.images as Array<unknown>) {
+        const u = typeof img === 'string' ? img : (img as Record<string, unknown>)?.url as string;
+        if (u) imageUrls.push(u);
+      }
+    }
+    if (imageUrls.length === 0 && pictureUrl) imageUrls.push(pictureUrl);
+
     const stored = await storeThumbnail(supabase, shortcode, pictureUrl);
 
     return {
@@ -59,13 +89,16 @@ export async function fetchReelMetadata(
       value: {
         thumbnail_url: stored ?? pictureUrl ?? PLACEHOLDER_THUMB,
         title: (meta.title as string) ?? null,
+        caption: rawCaption,
         author_username: username,
         author_name: username,
+        media_type,
+        image_urls: imageUrls,
         raw: {
           likeCount: meta.likeCount ?? null,
           commentCount: meta.commentCount ?? null,
           takenAt: meta.takenAt ?? null,
-          videoUrl: (item.urls as Array<{ url?: string }>)?.[0]?.url ?? null,
+          videoUrl,
         },
       },
     };

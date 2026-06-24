@@ -2,16 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, Library as LibraryIcon, SearchX } from 'lucide-react';
+import { CalendarDays, Search, Library as LibraryIcon, SearchX, X } from 'lucide-react';
 import {
   STRINGS,
   fetchReels,
-  fetchCategories,
+  fetchCategoryTree,
   fetchCategoryCounts,
   fetchAuthors,
+  fetchAllTags,
   recordView,
   reelUrl,
-  type Category,
+  type CategoryWithChildren,
   type LibraryFilters,
   type ReelWithCategory,
 } from '@reelvault/shared';
@@ -29,7 +30,8 @@ import {
 import { EmptyState } from '@/components/empty-state';
 import { ReelCard } from '@/components/library/reel-card';
 import { ReelGridSkeleton } from '@/components/library/reel-card-skeleton';
-import { CategoryChips } from '@/components/library/category-chips';
+import { CategoryTree } from '@/components/library/category-tree';
+import { TagFilter } from '@/components/library/tag-filter';
 import { AddReelDialog } from '@/components/library/add-reel-dialog';
 
 const PAGE_SIZE = 24;
@@ -42,57 +44,104 @@ export function LibraryView() {
   const supabase = useMemo(() => createClient(), []);
 
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
-  const debouncedSearch = useDebounce(search, 350);
+  const debouncedSearch = useDebounce(search, 400);
   const autoAdd = searchParams.get('add') === '1';
 
+  // Filtres
   const [categoryId, setCategoryId] = useState<string | null>(searchParams.get('category'));
+  const [activeTags, setActiveTags] = useState<string[]>([]);
   const [authorUsername, setAuthorUsername] = useState<string | null>(null);
   const [sort, setSort] = useState<SortValue>('recent');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [showDateFilter, setShowDateFilter] = useState(false);
 
-  const [categories, setCategories] = useState<Category[]>([]);
+  // Métadonnées
+  const [tree, setTree] = useState<CategoryWithChildren[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const [authors, setAuthors] = useState<
-    { author_username: string; author_name: string | null }[]
-  >([]);
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [authors, setAuthors] = useState<{ author_username: string; author_name: string | null }[]>([]);
   const [total, setTotal] = useState(0);
 
+  // Réels
   const [reels, setReels] = useState<ReelWithCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [searchType, setSearchType] = useState<'ilike' | 'fulltext' | 'hybrid' | null>(null);
+
+  // Calcul des categoryIds depuis l'arbre (quand une racine est sélectionnée, inclure ses enfants)
+  const categoryIds = useMemo(() => {
+    if (!categoryId) return null;
+    const root = tree.find((r) => r.id === categoryId);
+    if (root && root.children.length > 0) {
+      return [root.id, ...root.children.map((c) => c.id)];
+    }
+    return null; // catégorie feuille → filtre exact via categoryId
+  }, [categoryId, tree]);
 
   const filters: LibraryFilters = useMemo(
     () => ({
       search: debouncedSearch || undefined,
-      categoryId,
+      categoryId: categoryIds ? null : categoryId,
+      categoryIds: categoryIds ?? undefined,
+      tags: activeTags.length ? activeTags : undefined,
       authorUsername,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
       sort,
     }),
-    [debouncedSearch, categoryId, authorUsername, sort],
+    [debouncedSearch, categoryId, categoryIds, activeTags, authorUsername, dateFrom, dateTo, sort],
   );
 
-  // Métadonnées (catégories, compteurs, auteurs) — chargées une fois / rafraîchies après ajout.
+  // Métadonnées — chargées une fois / rafraîchies après ajout
   const loadMeta = useCallback(async () => {
     try {
-      const [cats, c, auth] = await Promise.all([
-        fetchCategories(supabase),
+      const [t, c, auth, tags] = await Promise.all([
+        fetchCategoryTree(supabase),
         fetchCategoryCounts(supabase),
         fetchAuthors(supabase),
+        fetchAllTags(supabase),
       ]);
-      setCategories(cats);
+      setTree(t);
       setCounts(c);
       setAuthors(auth);
+      setAllTags(tags);
       setTotal(Object.values(c).reduce((a, b) => a + b, 0));
     } catch {
-      /* RLS / réseau : on garde l'état précédent */
+      /* réseau / RLS */
     }
   }, [supabase]);
 
-  // Premier chargement des réels (reset à chaque changement de filtre).
+  // Chargement des réels (reset à chaque changement de filtre)
   const loadReels = useCallback(async () => {
     setLoading(true);
+    setSearchType(null);
     try {
+      if (debouncedSearch) {
+        // Recherche hybride via /api/search
+        const res = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: debouncedSearch,
+            tags: activeTags.length ? activeTags : undefined,
+            dateFrom: dateFrom || undefined,
+            dateTo: dateTo || undefined,
+            limit: PAGE_SIZE,
+          }),
+        });
+        if (res.ok) {
+          const json = await res.json() as { reels: ReelWithCategory[]; searchType?: string };
+          setReels(json.reels);
+          setSearchType(json.searchType as 'ilike' | 'fulltext' | 'hybrid' ?? 'ilike');
+          setHasMore(false); // la recherche hybride ne pagine pas
+          setOffset(json.reels.length);
+          return;
+        }
+      }
+      // Fallback : fetchReels normal (sans recherche ou si /api/search a échoué)
       const data = await fetchReels(supabase, filters, { limit: PAGE_SIZE, offset: 0 });
       setReels(data);
       setOffset(data.length);
@@ -103,15 +152,10 @@ export function LibraryView() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, filters]);
+  }, [supabase, filters, debouncedSearch, activeTags, dateFrom, dateTo]);
 
-  useEffect(() => {
-    loadMeta();
-  }, [loadMeta]);
-
-  useEffect(() => {
-    loadReels();
-  }, [loadReels]);
+  useEffect(() => { loadMeta(); }, [loadMeta]);
+  useEffect(() => { loadReels(); }, [loadReels]);
 
   async function loadMore() {
     setLoadingMore(true);
@@ -136,116 +180,186 @@ export function LibraryView() {
     );
   }
 
+  function toggleTag(tag: string) {
+    setActiveTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
+  }
+
   const isFiltered =
-    Boolean(debouncedSearch) || Boolean(categoryId) || Boolean(authorUsername);
+    Boolean(debouncedSearch) || Boolean(categoryId) || Boolean(authorUsername) ||
+    activeTags.length > 0 || Boolean(dateFrom) || Boolean(dateTo);
+
+  const hasDateFilter = Boolean(dateFrom) || Boolean(dateTo);
 
   return (
     <div className="space-y-5">
+      {/* En-tête */}
       <div className="flex items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold tracking-tight text-text sm:text-3xl">
           {STRINGS.library.title}
         </h1>
         <AddReelDialog
           defaultOpen={autoAdd}
-          onAdded={() => {
-            loadMeta();
-            loadReels();
-          }}
+          onAdded={() => { loadMeta(); loadReels(); }}
         />
       </div>
 
-      {/* Chips catégories */}
-      <CategoryChips
-        categories={categories}
-        counts={counts}
-        total={total}
-        activeCategory={categoryId}
-        onSelect={setCategoryId}
-      />
-
-      {/* Recherche + filtres */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={STRINGS.library.searchPlaceholder}
-            className="pl-9"
+      {/* Layout desktop : sidebar arbre + main */}
+      <div className="lg:flex lg:gap-6">
+        {/* Sidebar catégories (desktop uniquement) */}
+        <aside className="hidden lg:block lg:w-52 lg:shrink-0">
+          <CategoryTree
+            tree={tree}
+            counts={counts}
+            total={total}
+            activeCategory={categoryId}
+            onSelect={setCategoryId}
           />
-        </div>
+        </aside>
 
-        <Select
-          value={authorUsername ?? ALL}
-          onValueChange={(v) => setAuthorUsername(v === ALL ? null : v)}
-        >
-          <SelectTrigger className="w-full sm:w-52">
-            <SelectValue placeholder={STRINGS.library.filterByAuthor} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{STRINGS.library.filterByAuthor}</SelectItem>
-            {authors.map((a) => (
-              <SelectItem key={a.author_username} value={a.author_username}>
-                @{a.author_username}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={sort} onValueChange={(v) => setSort(v as SortValue)}>
-          <SelectTrigger className="w-full sm:w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="recent">{STRINGS.library.sortRecent}</SelectItem>
-            <SelectItem value="oldest">{STRINGS.library.sortOldest}</SelectItem>
-            <SelectItem value="most_viewed">{STRINGS.library.sortMostViewed}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Grille */}
-      {loading ? (
-        <ReelGridSkeleton />
-      ) : reels.length === 0 ? (
-        isFiltered ? (
-          <EmptyState
-            icon={SearchX}
-            title={STRINGS.library.emptyFiltered.title}
-            subtitle={STRINGS.library.emptyFiltered.subtitle}
-          />
-        ) : (
-          <EmptyState
-            icon={LibraryIcon}
-            title={STRINGS.library.empty.title}
-            subtitle={STRINGS.library.empty.subtitle}
-            action={
-              <AddReelDialog
-                onAdded={() => {
-                  loadMeta();
-                  loadReels();
-                }}
+        {/* Contenu principal */}
+        <div className="min-w-0 flex-1 space-y-4">
+          {/* Barre de recherche + filtres */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {/* Recherche */}
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={STRINGS.library.searchPlaceholder}
+                className="pl-9"
               />
-            }
-          />
-        )
-      ) : (
-        <>
-          <div className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-4 xl:columns-5">
-            {reels.map((reel, i) => (
-              <ReelCard key={reel.id} reel={reel} index={i} onOpen={openReel} />
-            ))}
+            </div>
+
+            {/* Auteur */}
+            <Select
+              value={authorUsername ?? ALL}
+              onValueChange={(v) => setAuthorUsername(v === ALL ? null : v)}
+            >
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder={STRINGS.library.filterByAuthor} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{STRINGS.library.filterByAuthor}</SelectItem>
+                {authors.map((a) => (
+                  <SelectItem key={a.author_username} value={a.author_username}>
+                    @{a.author_username}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Date */}
+            <Button
+              variant={hasDateFilter ? 'default' : 'secondary'}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setShowDateFilter((v) => !v)}
+            >
+              <CalendarDays className="h-4 w-4" />
+              {hasDateFilter ? `${dateFrom || '…'} → ${dateTo || '…'}` : STRINGS.library.filterByDate}
+            </Button>
+
+            {/* Tri */}
+            <Select value={sort} onValueChange={(v) => setSort(v as SortValue)}>
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recent">{STRINGS.library.sortRecent}</SelectItem>
+                <SelectItem value="oldest">{STRINGS.library.sortOldest}</SelectItem>
+                <SelectItem value="most_viewed">{STRINGS.library.sortMostViewed}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          {hasMore && (
-            <div className="mt-8 flex justify-center">
-              <Button variant="secondary" onClick={loadMore} disabled={loadingMore}>
-                {loadingMore ? STRINGS.common.loading : 'Charger plus'}
-              </Button>
+          {/* Filtre date (inline repliable) */}
+          {showDateFilter && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border-subtle bg-surface px-4 py-3">
+              <span className="text-xs font-medium text-text-muted">{STRINGS.library.filterByDate}</span>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-text-muted">{STRINGS.library.dateFrom}</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="rounded-md border border-border-subtle bg-surface-2 px-2 py-1 text-xs text-text focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-text-muted">{STRINGS.library.dateTo}</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="rounded-md border border-border-subtle bg-surface-2 px-2 py-1 text-xs text-text focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+              {hasDateFilter && (
+                <button
+                  type="button"
+                  onClick={() => { setDateFrom(''); setDateTo(''); }}
+                  className="flex items-center gap-1 text-xs text-text-muted hover:text-text"
+                >
+                  <X className="h-3.5 w-3.5" /> {STRINGS.library.clearDate}
+                </button>
+              )}
             </div>
           )}
-        </>
-      )}
+
+          {/* Tags filter */}
+          <TagFilter tags={allTags} activeTags={activeTags} onToggle={toggleTag} />
+
+          {/* Badge de type de recherche (debug/UX) */}
+          {searchType === 'hybrid' && debouncedSearch && (
+            <p className="text-xs text-text-muted">
+              🔍 Recherche sémantique active
+            </p>
+          )}
+
+          {/* Grille */}
+          {loading ? (
+            <ReelGridSkeleton />
+          ) : reels.length === 0 ? (
+            isFiltered ? (
+              <EmptyState
+                icon={SearchX}
+                title={STRINGS.library.emptyFiltered.title}
+                subtitle={STRINGS.library.emptyFiltered.subtitle}
+              />
+            ) : (
+              <EmptyState
+                icon={LibraryIcon}
+                title={STRINGS.library.empty.title}
+                subtitle={STRINGS.library.empty.subtitle}
+                action={
+                  <AddReelDialog
+                    onAdded={() => { loadMeta(); loadReels(); }}
+                  />
+                }
+              />
+            )
+          ) : (
+            <>
+              <div className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-3 xl:columns-4">
+                {reels.map((reel, i) => (
+                  <ReelCard key={reel.id} reel={reel} index={i} onOpen={openReel} />
+                ))}
+              </div>
+
+              {hasMore && (
+                <div className="mt-8 flex justify-center">
+                  <Button variant="secondary" onClick={loadMore} disabled={loadingMore}>
+                    {loadingMore ? STRINGS.common.loading : 'Charger plus'}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

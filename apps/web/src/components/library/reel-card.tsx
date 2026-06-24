@@ -22,6 +22,18 @@ export function ReelCard({
   const author = reel.author_username ? `@${reel.author_username}` : null;
   const aspect = ASPECTS[index % ASPECTS.length];
 
+  // Fil d'Ariane hiérarchique : Parent › Sous-catégorie
+  const catParent = reel.category?.parent;
+  const catLabel = reel.category
+    ? catParent
+      ? `${catParent.name} › ${reel.category.name}`
+      : reel.category.name
+    : null;
+  const catColor = catParent ? catParent.color : reel.category?.color;
+
+  // Tags : max 3 affichés
+  const visibleTags = (reel.tags ?? []).slice(0, 3);
+
   return (
     <button
       type="button"
@@ -40,21 +52,21 @@ export function ReelCard({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-90" />
 
-        {reel.category && (
+        {catLabel && reel.category && (
           <div className="absolute left-2.5 top-2.5">
             <Badge
               style={{
-                backgroundColor: `${reel.category.color}26`,
-                color: reel.category.color,
-                borderColor: `${reel.category.color}40`,
+                backgroundColor: `${catColor}26`,
+                color: catColor,
+                borderColor: `${catColor}40`,
               }}
-              className="backdrop-blur-md"
+              className="backdrop-blur-md max-w-[160px] truncate"
             >
               <span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ backgroundColor: reel.category.color }}
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: catColor }}
               />
-              {reel.category.name}
+              <span className="truncate">{catLabel}</span>
             </Badge>
           </div>
         )}
@@ -73,12 +85,34 @@ export function ReelCard({
       </div>
 
       {/* Métadonnées */}
-      <div className="flex flex-col gap-1.5 p-3.5">
+      <div className="flex flex-col gap-1 p-3.5">
         <h3 className="line-clamp-2 text-sm font-medium text-text">
           {reel.title || reel.caption || 'Réel sans titre'}
         </h3>
+
+        {/* Résumé IA */}
+        {reel.summary && (
+          <p className="line-clamp-2 text-xs text-text-secondary leading-relaxed">
+            {reel.summary}
+          </p>
+        )}
+
+        {/* Tags */}
+        {visibleTags.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-0.5">
+            {visibleTags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-text-muted"
+              >
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
+
         {author && <p className="text-xs text-text-secondary">{author}</p>}
-        <p className="pt-1 text-xs text-text-muted">
+        <p className="pt-0.5 text-xs text-text-muted">
           {STRINGS.library.addedOn} {formatDate(reel.added_at)}
         </p>
       </div>

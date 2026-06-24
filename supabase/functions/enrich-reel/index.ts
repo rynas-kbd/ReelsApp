@@ -1,4 +1,4 @@
-// enrich-reel — récupère miniature/titre/auteur d'un réel et met à jour la ligne.
+// enrich-reel — récupère miniature/titre/légende/auteur/type d'un réel et met à jour la ligne.
 // Body: { reel_id: string }
 // Utilise les clés RapidAPI de l'utilisateur (rotation sur quota), avec repli sur RAPIDAPI_KEY.
 import { adminClient } from '../_shared/supabase.ts';
@@ -47,8 +47,10 @@ Deno.serve(async (req) => {
         shortcode,
         thumbnail_url: meta.thumbnail_url,
         title: meta.title,
+        caption: meta.caption,
         author_username: meta.author_username,
         author_name: meta.author_name,
+        media_type: meta.media_type,
         raw_metadata: meta.raw,
         status: 'enriched',
       })
