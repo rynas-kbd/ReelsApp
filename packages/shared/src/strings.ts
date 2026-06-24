@@ -251,6 +251,13 @@ export const STRINGS = {
         'Dans l\'onglet « Endpoints », repère le header « X-RapidAPI-Key » et copie sa valeur (se termine par « …msh… »).',
         'Colle-la dans le champ RapidAPI ci-dessous.',
       ],
+      groqTitle: 'Clé Groq — transcription audio des réels vidéo (gratuit)',
+      groqSteps: [
+        'Va sur console.groq.com et crée un compte gratuit.',
+        'Dans le menu gauche, clique sur « API Keys » puis « Create API Key ».',
+        'Donne un nom (ex. « ReelVault »), clique « Submit » — une clé qui commence par « gsk_… » apparaît.',
+        'Copie-la et colle-la dans le champ Groq ci-dessous. (Tu peux créer plusieurs clés pour la rotation automatique.)',
+      ],
     },
     howto: {
       title: 'Comment ça marche',

@@ -45,11 +45,18 @@ export async function transcribeWithKey(
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      return {
-        ok: false,
-        quota: res.status === 429,
-        error: `Groq HTTP ${res.status} ${body.slice(0, 200)}`,
-      };
+      if (res.status === 429) {
+        // Groq renvoie Retry-After en secondes (ex. 60 s pour la limite par minute).
+        // On le lit pour éviter un cooldown de 6 h sur une limite transitoire.
+        const retryAfterSec = Number(res.headers.get('retry-after') ?? 0);
+        const MIN_MS = 5_000;   // ne pas mettre moins de 5 s
+        const MAX_MS = 6 * 60 * 60 * 1000; // cap à 6 h (cas extrême)
+        const cooldownMs = retryAfterSec > 0
+          ? Math.min(Math.max(retryAfterSec * 1000, MIN_MS), MAX_MS)
+          : undefined; // undefined → fallback COOLDOWN_MS de keys.ts (6 h)
+        return { ok: false, quota: true, cooldownMs, error: `Groq 429 ${body.slice(0, 200)}` };
+      }
+      return { ok: false, error: `Groq HTTP ${res.status} ${body.slice(0, 200)}` };
     }
 
     // Groq renvoie le texte brut (response_format=text)

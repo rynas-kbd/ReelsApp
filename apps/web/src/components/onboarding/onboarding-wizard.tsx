@@ -237,6 +237,7 @@ export function OnboardingWizard({
               <div className="mt-6 space-y-4">
                 <Tutorial title={STRINGS.onboarding.keys.geminiTitle} steps={STRINGS.onboarding.keys.geminiSteps} />
                 <Tutorial title={STRINGS.onboarding.keys.rapidTitle} steps={STRINGS.onboarding.keys.rapidSteps} />
+                <Tutorial title={STRINGS.onboarding.keys.groqTitle} steps={STRINGS.onboarding.keys.groqSteps} />
                 <p className="text-xs text-text-muted">{STRINGS.onboarding.keys.optional}</p>
                 <ApiKeysCard userId={userId} />
               </div>

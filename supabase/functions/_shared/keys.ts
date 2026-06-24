@@ -50,7 +50,13 @@ export async function getApiKeys(
 }
 
 export interface AttemptOk<T> { ok: true; value: T }
-export interface AttemptFail { ok: false; quota?: boolean; error?: string }
+export interface AttemptFail {
+  ok: false;
+  quota?: boolean;
+  /** Durée de cooldown suggérée (ms). Si absent → fallback COOLDOWN_MS de keys.ts. */
+  cooldownMs?: number;
+  error?: string;
+}
 export type Attempt<T> = AttemptOk<T> | AttemptFail;
 
 /**
@@ -80,9 +86,12 @@ export async function runWithRotation<T>(
     }
 
     if (res.quota && k.id) {
+      // Respecter Retry-After si le provider le fournit (ex. Groq par-minute 429).
+      // Sinon utiliser le cooldown journalier par défaut (ex. Gemini).
+      const cooldownDuration = res.cooldownMs ?? COOLDOWN_MS;
       await supabase.from('user_api_keys')
         .update({
-          cooldown_until: new Date(Date.now() + COOLDOWN_MS).toISOString(),
+          cooldown_until: new Date(Date.now() + cooldownDuration).toISOString(),
           last_error: (res.error ?? 'quota (429)').slice(0, 300),
         })
         .eq('id', k.id);
