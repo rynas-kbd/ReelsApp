@@ -153,7 +153,7 @@ export function SettingsView({ userId }: { userId: string }) {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session?.access_token ?? ''}`,
           },
-          body: JSON.stringify({ user_id: userId }),
+          body: JSON.stringify({}),
         },
       );
       if (!res.ok) throw new Error();

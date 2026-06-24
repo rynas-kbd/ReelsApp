@@ -1,12 +1,11 @@
-// reprocess-library — re-classe TOUS les réels d'un utilisateur (backfill complet).
-// Body: { user_id?: string }  (admin uniquement ; si absent → tous les utilisateurs)
+// reprocess-library — re-classe TOUS les réels de l'utilisateur authentifié.
+// Body: {} (aucun paramètre — l'utilisateur est extrait du JWT)
 //
+// Répond immédiatement 202 et traite en arrière-plan (EdgeRuntime.waitUntil)
+// pour éviter le timeout de l'edge function sur les grosses bibliothèques.
 // Traite par lots de 10 avec une pause de 2 s entre chaque lot pour respecter
 // les quotas gratuits (Gemini, Groq, RapidAPI). Idempotent (rejouable).
-//
-// ⚠️ Cette fonction s'exécute en service-role et est protégée par le secret SUPABASE_SERVICE_ROLE_KEY.
-//    Elle ne doit PAS être exposée publiquement sans vérification d'auth.
-import { adminClient } from '../_shared/supabase.ts';
+import { adminClient, userClient } from '../_shared/supabase.ts';
 import { handleOptions, json } from '../_shared/cors.ts';
 
 const BATCH_SIZE = 10;
@@ -16,64 +15,70 @@ Deno.serve(async (req) => {
   const pre = handleOptions(req);
   if (pre) return pre;
 
-  // Auth basique : vérifier que l'appelant passe le service-role key
-  const auth = req.headers.get('authorization') ?? '';
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  if (!auth.includes(serviceKey)) {
-    return json({ error: 'non autorisé' }, 401);
-  }
+  // Auth : JWT utilisateur (le front envoie session.access_token)
+  const authedClient = userClient(req);
+  const { data: authData } = await authedClient.auth.getUser();
+  const user = authData?.user;
+  if (!user) return json({ error: 'non authentifié' }, 401);
 
   try {
-    const body = await req.json().catch(() => ({}));
-    const targetUser: string | null = body?.user_id ?? null;
-
     const supabase = adminClient();
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const headers = {
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const internalHeaders = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${serviceKey}`,
     };
 
-    // Récupère les réels à retraiter (tous ou pour un user spécifique)
-    let query = supabase.from('reels').select('id').order('added_at', { ascending: true });
-    if (targetUser) query = query.eq('user_id', targetUser);
-    const { data: reels } = await query;
+    // Récupère uniquement les réels de cet utilisateur
+    const { data: reels } = await supabase
+      .from('reels')
+      .select('id')
+      .eq('user_id', user.id)
+      .order('added_at', { ascending: true });
 
     const ids = (reels ?? []).map((r: { id: string }) => r.id);
-    let processed = 0;
-    let errors = 0;
 
-    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-      const batch = ids.slice(i, i + BATCH_SIZE);
-      await Promise.allSettled(
-        batch.map(async (reel_id) => {
-          try {
-            // Re-enrich pour récupérer la légende complète + type de média
-            await fetch(`${supabaseUrl}/functions/v1/enrich-reel`, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ reel_id }),
-            });
-            // Re-classify avec le nouveau pipeline multimodal
-            await fetch(`${supabaseUrl}/functions/v1/classify-reel`, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ reel_id }),
-            });
-            processed++;
-          } catch {
-            errors++;
-          }
-        }),
-      );
+    // Traitement en arrière-plan (ne bloque pas la réponse)
+    async function processAll(reelIds: string[]) {
+      for (let i = 0; i < reelIds.length; i += BATCH_SIZE) {
+        const batch = reelIds.slice(i, i + BATCH_SIZE);
+        await Promise.allSettled(
+          batch.map(async (reel_id) => {
+            try {
+              await fetch(`${supabaseUrl}/functions/v1/enrich-reel`, {
+                method: 'POST',
+                headers: internalHeaders,
+                body: JSON.stringify({ reel_id }),
+              });
+              await fetch(`${supabaseUrl}/functions/v1/classify-reel`, {
+                method: 'POST',
+                headers: internalHeaders,
+                body: JSON.stringify({ reel_id }),
+              });
+            } catch {
+              // Erreur sur un réel isolé → on continue les suivants
+            }
+          }),
+        );
 
-      // Pause entre les lots
-      if (i + BATCH_SIZE < ids.length) {
-        await new Promise((r) => setTimeout(r, PAUSE_MS));
+        // Pause entre les lots pour ménager les quotas gratuits
+        if (i + BATCH_SIZE < reelIds.length) {
+          await new Promise((r) => setTimeout(r, PAUSE_MS));
+        }
       }
     }
 
-    return json({ ok: true, total: ids.length, processed, errors });
+    // @ts-ignore — EdgeRuntime est disponible dans le runtime Supabase/Deno
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(processAll(ids));
+    } else {
+      // Fallback (tests locaux) : attendre quand même
+      await processAll(ids);
+    }
+
+    return json({ ok: true, total: ids.length, started: true }, 202);
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

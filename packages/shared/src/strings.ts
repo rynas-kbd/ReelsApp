@@ -102,7 +102,7 @@ export const STRINGS = {
     buttonLabel: 'Re-classer ma bibliothèque',
     buttonHelp: 'Retraite tous tes réels avec le nouveau pipeline IA (transcription + classement multimodal).',
     running: 'Retraitement en cours…',
-    done: 'Retraitement terminé !',
+    done: 'Re-classement lancé — ça tourne en arrière-plan, reviens dans quelques minutes.',
     error: 'Erreur lors du retraitement.',
   },
   stats: {
