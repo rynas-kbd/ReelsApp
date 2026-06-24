@@ -416,3 +416,36 @@ export async function fetchAuthors(
   }
   return [...seen.values()];
 }
+
+/**
+ * Recherche hybride (plein-texte + sémantique) via l'edge function search-reels.
+ * Partagée web + mobile. Nécessite l'URL Supabase et le JWT de l'utilisateur.
+ * La fonction gère elle-même le repli ilike si pgvector/Gemini sont indisponibles.
+ */
+export async function searchReelsHybrid(
+  supabaseUrl: string,
+  accessToken: string,
+  params: {
+    query: string;
+    tags?: string[];
+    dateFrom?: string;
+    dateTo?: string;
+    limit?: number;
+  },
+): Promise<ReelWithCategory[]> {
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/search-reels`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { reels?: ReelWithCategory[] };
+    return (data.reels ?? []) as ReelWithCategory[];
+  } catch {
+    return [];
+  }
+}

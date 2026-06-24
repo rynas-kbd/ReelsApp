@@ -41,9 +41,37 @@ export function ReelCard({ reel, onPress }: Props) {
         </View>
 
         <View style={styles.body}>
+          {/* Fil d'ariane catégorie (parent › enfant ou catégorie seule) */}
+          {reel.category ? (
+            <Text style={styles.breadcrumb} numberOfLines={1}>
+              {reel.category.parent
+                ? `${reel.category.parent.name} › ${reel.category.name}`
+                : reel.category.name}
+            </Text>
+          ) : null}
+
           <Text style={styles.title} numberOfLines={2}>
             {title}
           </Text>
+
+          {/* Résumé IA */}
+          {reel.summary ? (
+            <Text style={styles.summary} numberOfLines={2}>
+              {reel.summary}
+            </Text>
+          ) : null}
+
+          {/* Tags */}
+          {reel.tags && reel.tags.length > 0 ? (
+            <View style={styles.tagRow}>
+              {reel.tags.slice(0, 3).map((tag) => (
+                <View key={tag} style={styles.tagChip}>
+                  <Text style={styles.tagText}>#{tag}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           <View style={styles.metaRow}>
             {author ? (
               <Text style={styles.author} numberOfLines={1}>
@@ -113,17 +141,44 @@ const styles = StyleSheet.create({
   },
   body: {
     padding: spacing.md,
+    gap: spacing.xs,
+  },
+  breadcrumb: {
+    color: colors.textMuted,
+    fontSize: typography.sizes.xs,
+    marginBottom: 2,
   },
   title: {
     color: colors.text,
     fontSize: typography.sizes.base,
     fontWeight: typography.weights.semibold,
-    marginBottom: spacing.sm,
+  },
+  summary: {
+    color: colors.textSecondary,
+    fontSize: typography.sizes.xs,
+    fontStyle: 'italic',
+    lineHeight: 16,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  tagChip: {
+    backgroundColor: colors.surface2,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  tagText: {
+    color: colors.textSecondary,
+    fontSize: typography.sizes.xs,
   },
   metaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 2,
   },
   author: {
     color: colors.accentTo,

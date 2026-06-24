@@ -12,6 +12,7 @@ import {
   fetchAllTags,
   recordView,
   reelUrl,
+  searchReelsHybrid,
   type CategoryWithChildren,
   type LibraryFilters,
   type ReelWithCategory,
@@ -120,24 +121,24 @@ export function LibraryView() {
     setSearchType(null);
     try {
       if (debouncedSearch) {
-        // Recherche hybride via /api/search
-        const res = await fetch('/api/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: debouncedSearch,
-            tags: activeTags.length ? activeTags : undefined,
-            dateFrom: dateFrom || undefined,
-            dateTo: dateTo || undefined,
-            limit: PAGE_SIZE,
-          }),
-        });
-        if (res.ok) {
-          const json = await res.json() as { reels: ReelWithCategory[]; searchType?: string };
-          setReels(json.reels);
-          setSearchType(json.searchType as 'ilike' | 'fulltext' | 'hybrid' ?? 'ilike');
+        // Recherche hybride via l'edge function search-reels (partagée web + mobile)
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const reelResults = await searchReelsHybrid(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            session.access_token,
+            {
+              query: debouncedSearch,
+              tags: activeTags.length ? activeTags : undefined,
+              dateFrom: dateFrom || undefined,
+              dateTo: dateTo || undefined,
+              limit: PAGE_SIZE,
+            },
+          );
+          setReels(reelResults);
+          setSearchType('hybrid');
           setHasMore(false); // la recherche hybride ne pagine pas
-          setOffset(json.reels.length);
+          setOffset(reelResults.length);
           return;
         }
       }

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import {
   fetchConnection,
   fetchProfile,
@@ -34,11 +35,13 @@ import {
   registerForPushNotificationsAsync,
   unregisterPushToken,
 } from '../../lib/notifications';
+import { reprocessLibrary } from '../../lib/reprocessLibrary';
 import { colors, radius, spacing, typography } from '../../lib/theme';
 
 export default function SettingsScreen() {
   const { userId, signOut } = useAuth();
   const { show } = useToast();
+  const router = useRouter();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [connection, setConnection] = useState<InstagramConnection | null>(null);
@@ -47,6 +50,7 @@ export default function SettingsScreen() {
   const [savingName, setSavingName] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [reprocessing, setReprocessing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -273,6 +277,41 @@ export default function SettingsScreen() {
             />
           </>
         )}
+
+        {/* Gestion des catégories */}
+        <SectionLabel>{STRINGS.nav.categories}</SectionLabel>
+        <Pressable style={styles.card} onPress={() => router.push('/categories')}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.rowTitle}>{STRINGS.categories.title}</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </View>
+        </Pressable>
+
+        {/* Re-classement IA */}
+        <SectionLabel>{STRINGS.reprocess.buttonLabel}</SectionLabel>
+        <View style={styles.card}>
+          <Text style={styles.label}>{STRINGS.reprocess.buttonHelp}</Text>
+          <GradientButton
+            label={reprocessing ? STRINGS.reprocess.running : STRINGS.reprocess.buttonLabel}
+            onPress={async () => {
+              setReprocessing(true);
+              try {
+                const result = await reprocessLibrary();
+                if (result.ok) {
+                  show(STRINGS.reprocess.done, 'success');
+                } else {
+                  show(STRINGS.reprocess.error, 'error');
+                }
+              } catch {
+                show(STRINGS.reprocess.error, 'error');
+              } finally {
+                setReprocessing(false);
+              }
+            }}
+            loading={reprocessing}
+            style={{ marginTop: spacing.md }}
+          />
+        </View>
 
         {/* Déconnexion */}
         <Pressable style={styles.logout} onPress={signOut}>

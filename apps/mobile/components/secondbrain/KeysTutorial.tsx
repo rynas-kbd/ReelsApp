@@ -31,6 +31,10 @@ export function KeysTutorial() {
         title={STRINGS.onboarding.keys.rapidTitle}
         steps={STRINGS.onboarding.keys.rapidSteps}
       />
+      <Tutorial
+        title={STRINGS.onboarding.keys.groqTitle}
+        steps={STRINGS.onboarding.keys.groqSteps}
+      />
       <Text style={styles.optional}>{STRINGS.onboarding.keys.optional}</Text>
     </View>
   );
