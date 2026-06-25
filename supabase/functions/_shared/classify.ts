@@ -173,7 +173,7 @@ RÈGLES :
 3. Optionnel : choisis ou crée une SOUS-CATÉGORIE (niveau 2) sous cette racine, si le sujet est suffisamment précis. Sinon, mets null.
 4. Ne crée pas de doublon sémantique : réutilise exactement le nom existant (même orthographe) si le sujet correspond.
 5. Génère entre 3 et 8 TAGS courts (un mot ou deux mots), en minuscules, sans # (ex : "débutant", "recette rapide").
-6. Rédige un RÉSUMÉ très court (1 à 2 phrases max) décrivant ce que montre/explique le réel.
+6. Rédige un RÉSUMÉ avec les points clés décrivant ce que montre/explique le réel et ce qu'on doit retenir.
 7. IMPORTANT : si tu peux rédiger un résumé (règle 6), tu DOIS obligatoirement choisir ou créer une vraie catégorie thématique. Ne jamais combiner résumé + "À trier".
 8. Utilise "À trier" comme catégorie ET résumé vide UNIQUEMENT si le contenu est totalement inexploitable (aucun texte, image illisible, aucune information).
 

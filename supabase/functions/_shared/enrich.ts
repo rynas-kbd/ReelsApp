@@ -107,18 +107,22 @@ export async function fetchReelMetadata(
   }
 }
 
-/** Télécharge l'image Instagram et la réhéberge dans le bucket public, renvoie l'URL durable. */
-async function storeThumbnail(
+/**
+ * Télécharge une image distante et la réhéberge dans le bucket public `thumbnails`.
+ * @param key  Nom de fichier sans extension (ex : shortcode ou media_id).
+ * @param srcUrl  URL source de l'image à télécharger.
+ * @returns URL publique durable, ou null en cas d'échec.
+ */
+export async function rehostImage(
   supabase: SupabaseClient,
-  shortcode: string,
-  pictureUrl: string | null,
+  key: string,
+  srcUrl: string,
 ): Promise<string | null> {
-  if (!pictureUrl) return null;
   try {
-    const img = await fetch(pictureUrl);
+    const img = await fetch(srcUrl);
     if (!img.ok) return null;
     const bytes = new Uint8Array(await img.arrayBuffer());
-    const path = `${shortcode}.jpg`;
+    const path = `${key}.jpg`;
 
     const { error } = await supabase.storage
       .from(THUMBNAILS_BUCKET)
@@ -130,4 +134,14 @@ async function storeThumbnail(
   } catch (_e) {
     return null;
   }
+}
+
+/** Télécharge l'image Instagram et la réhéberge dans le bucket public, renvoie l'URL durable. */
+async function storeThumbnail(
+  supabase: SupabaseClient,
+  shortcode: string,
+  pictureUrl: string | null,
+): Promise<string | null> {
+  if (!pictureUrl) return null;
+  return rehostImage(supabase, shortcode, pictureUrl);
 }

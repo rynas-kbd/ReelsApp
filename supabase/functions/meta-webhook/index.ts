@@ -9,7 +9,8 @@
 //    Tout est journalisé dans `webhook_events` pour pouvoir ajuster si besoin.
 import { adminClient } from '../_shared/supabase.ts';
 import { corsHeaders } from '../_shared/cors.ts';
-import { extractShortcode, reelUrl } from '../_shared/reel.ts';
+import { extractShortcode } from '../_shared/reel.ts';
+import { ingestSharedAttachment, orchestrate } from '../_shared/ingest.ts';
 
 const VERIFY_TOKEN = () => Deno.env.get('META_VERIFY_TOKEN') ?? '';
 const APP_SECRET = () => Deno.env.get('META_APP_SECRET') ?? '';
@@ -208,49 +209,27 @@ async function tryCaptureReel(
   // Si un compte principal est jumelé, on n'accepte QUE ses partages.
   if (conn.sender_id && senderId && conn.sender_id !== senderId) return;
 
-  // Récupère les liens IG depuis les attachments + le texte du message.
-  const candidates: string[] = [];
-  for (const att of evt.message?.attachments ?? []) {
-    if (att.payload?.url) candidates.push(att.payload.url);
+  // ── Itérer les pièces jointes : ig_reel, ig_post (photo/carrousel), etc. ──
+  const attachments = evt.message?.attachments ?? [];
+  for (const att of attachments) {
+    const result = await ingestSharedAttachment(supabase, conn.user_id, att);
+    if (result) {
+      await orchestrate(result.reelId, result.kind);
+      return; // un post par message
+    }
   }
-  if (evt.message?.text) candidates.push(evt.message.text);
 
-  for (const candidate of candidates) {
-    const shortcode = extractShortcode(candidate);
-    if (!shortcode) continue;
-
-    const { data: reel, error } = await supabase
-      .from('reels')
-      .insert({
-        user_id: conn.user_id,
-        ig_url: reelUrl(shortcode),
-        shortcode,
-        source: 'webhook',
-        status: 'pending',
-      })
-      .select('id')
-      .single();
-
-    // Doublon → on ignore proprement.
-    if (error) continue;
-
-    await orchestrate(reel.id);
-    break; // un réel par message
+  // ── Repli : lien IG collé en texte libre ──────────────────────────────────
+  const text = evt.message?.text?.trim();
+  if (text) {
+    const shortcode = extractShortcode(text);
+    if (shortcode) {
+      const result = await ingestSharedAttachment(supabase, conn.user_id, {
+        payload: { url: `https://www.instagram.com/reel/${shortcode}/` },
+      });
+      if (result) {
+        await orchestrate(result.reelId, result.kind);
+      }
+    }
   }
-}
-
-async function orchestrate(reelId: string) {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` };
-  await fetch(`${supabaseUrl}/functions/v1/enrich-reel`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ reel_id: reelId }),
-  }).catch(() => {});
-  await fetch(`${supabaseUrl}/functions/v1/classify-reel`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ reel_id: reelId }),
-  }).catch(() => {});
 }

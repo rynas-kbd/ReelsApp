@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
       .single();
     if (error || !reel) return json({ error: 'réel introuvable' }, 404);
 
-    const shortcode = reel.shortcode ?? extractShortcode(reel.ig_url);
+    const shortcode = reel.shortcode ?? (reel.ig_url ? extractShortcode(reel.ig_url) : null);
     if (!shortcode) return json({ error: 'shortcode introuvable' }, 422);
 
     // Rotation sur les clés RapidAPI de l'utilisateur (+ repli env).

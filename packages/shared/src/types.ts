@@ -68,7 +68,7 @@ export interface CategoryWithChildren extends Category {
 export interface Reel {
   id: string;
   user_id: string;
-  ig_url: string;
+  ig_url: string | null;  // null pour les posts photo/carrousel (pas d'URL instagram.com exploitable)
   shortcode: string | null;
   thumbnail_url: string | null;
   title: string | null;

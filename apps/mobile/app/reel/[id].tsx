@@ -151,14 +151,16 @@ export default function ReelDetailScreen() {
             </View>
           </View>
 
-          {/* Open in Instagram CTA */}
-          <Pressable
-            onPress={openInInstagram}
-            style={({ pressed }) => [styles.igBtn, { opacity: pressed ? 0.85 : 1 }]}
-          >
-            <Ionicons name="logo-instagram" size={16} color={theme.colors.white} />
-            <Text style={styles.igBtnText}>Ouvrir dans Instagram</Text>
-          </Pressable>
+          {/* Open in Instagram CTA — masqué pour les posts sans URL (photos/carrousels) */}
+          {(reel.ig_url || reel.shortcode) ? (
+            <Pressable
+              onPress={openInInstagram}
+              style={({ pressed }) => [styles.igBtn, { opacity: pressed ? 0.85 : 1 }]}
+            >
+              <Ionicons name="logo-instagram" size={16} color={theme.colors.white} />
+              <Text style={styles.igBtnText}>Ouvrir dans Instagram</Text>
+            </Pressable>
+          ) : null}
 
           {/* AI Summary */}
           <View style={styles.section}>

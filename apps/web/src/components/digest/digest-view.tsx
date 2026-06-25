@@ -123,8 +123,8 @@ export function DigestView({
                 return (
                   <a
                     key={reel.id}
-                    href={reel.ig_url}
-                    target="_blank"
+                    href={reel.ig_url ?? undefined}
+                    target={reel.ig_url ? '_blank' : undefined}
                     rel="noopener noreferrer"
                     className="group mb-3 block break-inside-avoid overflow-hidden rounded-2xl border border-border-subtle bg-surface shadow-soft transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-glow"
                   >
