@@ -2,25 +2,27 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { STRINGS } from '@reelvault/shared';
-import { colors, typography } from '../../lib/theme';
+import { useTheme } from '../../lib/theme';
 
 export default function TabsLayout() {
+  const theme = useTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.accentTo,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarActiveTintColor: theme.colors.brand2,
+        tabBarInactiveTintColor: theme.colors.textMuted,
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          backgroundColor: theme.colors.surface,
+          borderTopColor: theme.colors.border,
           height: 62,
           paddingBottom: 8,
           paddingTop: 6,
         },
         tabBarLabelStyle: {
-          fontSize: typography.sizes.xs,
-          fontWeight: typography.weights.medium,
+          fontSize: theme.typography.sizes.xs,
+          fontWeight: theme.typography.weights.medium,
         },
       }}
     >

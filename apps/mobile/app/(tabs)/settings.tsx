@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -36,12 +36,16 @@ import {
   unregisterPushToken,
 } from '../../lib/notifications';
 import { reprocessLibrary } from '../../lib/reprocessLibrary';
-import { colors, radius, spacing, typography } from '../../lib/theme';
+import { useTheme, useThemeControl } from '../../lib/theme';
+import type { Theme } from '@reelvault/design-tokens';
 
 export default function SettingsScreen() {
   const { userId, signOut } = useAuth();
   const { show } = useToast();
   const router = useRouter();
+  const theme = useTheme();
+  const { scheme, setScheme } = useThemeControl();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [connection, setConnection] = useState<InstagramConnection | null>(null);
@@ -150,9 +154,9 @@ export default function SettingsScreen() {
   }
 
   function statusColor(): string {
-    if (connection?.status === 'active') return colors.success;
-    if (connection?.status === 'revoked') return colors.danger;
-    return colors.warning;
+    if (connection?.status === 'active') return theme.colors.success;
+    if (connection?.status === 'revoked') return theme.colors.danger;
+    return theme.colors.warning;
   }
 
   if (loading) {
@@ -160,7 +164,7 @@ export default function SettingsScreen() {
       <Screen>
         <GradientHeader title={STRINGS.settings.title} />
         <View style={styles.center}>
-          <ActivityIndicator color={colors.accent} />
+          <ActivityIndicator color={theme.colors.brand} />
         </View>
       </Screen>
     );
@@ -170,6 +174,41 @@ export default function SettingsScreen() {
     <Screen>
       <GradientHeader title={STRINGS.settings.title} />
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        {/* Apparence */}
+        <SectionLabel>Apparence</SectionLabel>
+        <View style={styles.card}>
+          <Text style={styles.rowTitle}>Thème</Text>
+          <View style={styles.themeRow}>
+            {(['light', 'dark', 'system'] as const).map((opt) => {
+              const labels = { light: 'Clair', dark: 'Sombre', system: 'Système' };
+              const active = scheme === opt;
+              return (
+                <Pressable
+                  key={opt}
+                  onPress={() => setScheme(opt)}
+                  style={[
+                    styles.themeBtn,
+                    active && {
+                      backgroundColor: theme.colors.brandSoft,
+                      borderColor: theme.colors.brand,
+                    },
+                  ]}
+                >
+                  {active ? (
+                    <Ionicons name="checkmark" size={14} color={theme.colors.brand} />
+                  ) : null}
+                  <Text style={[
+                    styles.themeBtnText,
+                    active && { color: theme.colors.brand, fontWeight: theme.typography.weights.semibold },
+                  ]}>
+                    {labels[opt]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
         {/* Compte */}
         <SectionLabel>{STRINGS.settings.account}</SectionLabel>
         <View style={styles.card}>
@@ -178,14 +217,14 @@ export default function SettingsScreen() {
             value={displayName}
             onChangeText={setDisplayName}
             placeholder="Ton nom"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={theme.colors.textMuted}
             style={styles.input}
           />
           <GradientButton
             label={STRINGS.settings.save}
             onPress={onSaveName}
             loading={savingName}
-            style={{ marginTop: spacing.md }}
+            style={{ marginTop: theme.spacing.md }}
           />
         </View>
 
@@ -193,18 +232,18 @@ export default function SettingsScreen() {
         <SectionLabel>{STRINGS.settings.preferences}</SectionLabel>
         <View style={styles.card}>
           <View style={styles.rowBetween}>
-            <View style={{ flex: 1, paddingRight: spacing.md }}>
+            <View style={{ flex: 1, paddingRight: theme.spacing.md }}>
               <Text style={styles.rowTitle}>{STRINGS.settings.notifications}</Text>
               <Text style={styles.rowHelp}>{STRINGS.settings.notificationsHelp}</Text>
             </View>
             {notifBusy ? (
-              <ActivityIndicator color={colors.accent} />
+              <ActivityIndicator color={theme.colors.brand} />
             ) : (
               <Switch
                 value={profile?.notif_enabled ?? false}
                 onValueChange={onToggleNotif}
-                trackColor={{ false: colors.surface3, true: colors.accent }}
-                thumbColor={colors.white}
+                trackColor={{ false: theme.colors.surface3, true: theme.colors.brand }}
+                thumbColor={theme.colors.white}
               />
             )}
           </View>
@@ -225,23 +264,25 @@ export default function SettingsScreen() {
             <>
               <Text style={styles.activationTitle}>
                 {STRINGS.instagram.connectedAs}{' '}
-                <Text style={styles.connectedUser}>@{connection.ig_username ?? '—'}</Text>
+                <Text style={[styles.connectedUser, { color: theme.colors.brand2 }]}>
+                  @{connection.ig_username ?? '—'}
+                </Text>
               </Text>
               <OutlineButton
                 label={disconnecting ? STRINGS.instagram.disconnecting : STRINGS.instagram.disconnect}
                 onPress={disconnect}
                 disabled={disconnecting}
-                style={{ marginTop: spacing.md }}
+                style={{ marginTop: theme.spacing.md }}
               />
             </>
           ) : (
             <>
-              <Text style={[styles.step, { marginTop: spacing.md }]}>{STRINGS.instagram.intro}</Text>
+              <Text style={[styles.step, { marginTop: theme.spacing.md }]}>{STRINGS.instagram.intro}</Text>
               <GradientButton
                 label={STRINGS.instagram.connect}
                 onPress={connectInstagram}
                 loading={connecting}
-                style={{ marginTop: spacing.md }}
+                style={{ marginTop: theme.spacing.md }}
               />
             </>
           )}
@@ -283,7 +324,7 @@ export default function SettingsScreen() {
         <Pressable style={styles.card} onPress={() => router.push('/categories')}>
           <View style={styles.rowBetween}>
             <Text style={styles.rowTitle}>{STRINGS.categories.title}</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
           </View>
         </Pressable>
 
@@ -309,13 +350,13 @@ export default function SettingsScreen() {
               }
             }}
             loading={reprocessing}
-            style={{ marginTop: spacing.md }}
+            style={{ marginTop: theme.spacing.md }}
           />
         </View>
 
         {/* Déconnexion */}
         <Pressable style={styles.logout} onPress={signOut}>
-          <Ionicons name="log-out-outline" size={20} color={colors.danger} />
+          <Ionicons name="log-out-outline" size={20} color={theme.colors.danger} />
           <Text style={styles.logoutText}>{STRINGS.nav.logout}</Text>
         </Pressable>
       </ScrollView>
@@ -323,118 +364,125 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  scroll: {
-    padding: spacing.lg,
-    paddingBottom: spacing['3xl'],
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-  },
-  label: {
-    color: colors.textSecondary,
-    fontSize: typography.sizes.sm,
-    marginBottom: spacing.sm,
-  },
-  input: {
-    backgroundColor: colors.surface2,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    color: colors.text,
-    fontSize: typography.sizes.base,
-  },
-  rowBetween: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  rowTitle: {
-    color: colors.text,
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.semibold,
-  },
-  rowHelp: {
-    color: colors.textSecondary,
-    fontSize: typography.sizes.sm,
-    marginTop: 2,
-    lineHeight: 18,
-  },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: radius.full,
-    paddingVertical: 4,
-    paddingHorizontal: spacing.sm,
-    gap: 6,
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  statusText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.medium,
-  },
-  activationTitle: {
-    color: colors.text,
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.semibold,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  step: {
-    color: colors.textSecondary,
-    fontSize: typography.sizes.sm,
-    lineHeight: 20,
-    marginBottom: spacing.sm,
-  },
-  codeBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface2,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    marginVertical: spacing.sm,
-  },
-  code: {
-    color: colors.text,
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
-    letterSpacing: 2,
-  },
-  connectedUser: {
-    color: colors.accentTo,
-    fontWeight: typography.weights.bold,
-  },
-  logout: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    marginTop: spacing['2xl'],
-    paddingVertical: spacing.md,
-  },
-  logoutText: {
-    color: colors.danger,
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.semibold,
-  },
-});
+function makeStyles(theme: Theme) {
+  const { colors, radius, spacing, typography } = theme;
+  return StyleSheet.create({
+    scroll: {
+      padding: spacing.lg,
+      paddingBottom: spacing['3xl'],
+    },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.xl,
+      padding: spacing.lg,
+    },
+    label: {
+      color: colors.textSecondary,
+      fontSize: typography.sizes.sm,
+      marginBottom: spacing.sm,
+    },
+    input: {
+      backgroundColor: colors.surface2,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      color: colors.text,
+      fontSize: typography.sizes.base,
+    },
+    rowBetween: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    rowTitle: {
+      color: colors.text,
+      fontSize: typography.sizes.base,
+      fontWeight: typography.weights.semibold,
+    },
+    rowHelp: {
+      color: colors.textSecondary,
+      fontSize: typography.sizes.sm,
+      marginTop: 2,
+      lineHeight: 18,
+    },
+    statusPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderRadius: radius.full,
+      paddingVertical: 4,
+      paddingHorizontal: spacing.sm,
+      gap: 6,
+    },
+    statusDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+    },
+    statusText: {
+      fontSize: typography.sizes.xs,
+      fontWeight: typography.weights.medium,
+    },
+    activationTitle: {
+      color: colors.text,
+      fontSize: typography.sizes.base,
+      fontWeight: typography.weights.semibold,
+      marginTop: spacing.lg,
+      marginBottom: spacing.sm,
+    },
+    step: {
+      color: colors.textSecondary,
+      fontSize: typography.sizes.sm,
+      lineHeight: 20,
+      marginBottom: spacing.sm,
+    },
+    connectedUser: {
+      fontWeight: typography.weights.bold,
+    },
+    logout: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      marginTop: spacing['2xl'],
+      paddingVertical: spacing.md,
+    },
+    logoutText: {
+      color: colors.danger,
+      fontSize: typography.sizes.base,
+      fontWeight: typography.weights.semibold,
+    },
+    // Apparence / thème
+    themeRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    themeBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface2,
+    },
+    themeBtnText: {
+      color: colors.textSecondary,
+      fontSize: typography.sizes.sm,
+    },
+  });
+}

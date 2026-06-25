@@ -59,6 +59,27 @@ export async function fetchReels(
   return (data ?? []) as unknown as ReelWithCategory[];
 }
 
+export async function fetchReelById(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<ReelWithCategory | null> {
+  const { data, error } = await supabase
+    .from('reels')
+    .select('*, category:categories(id,name,slug,color,icon,parent_id, parent:parent_id(id,name,slug,color))')
+    .eq('id', id)
+    .single();
+  if (error || !data) return null;
+  return data as ReelWithCategory;
+}
+
+export async function updateReelNotes(
+  supabase: SupabaseClient,
+  id: string,
+  notes: string | null,
+): Promise<void> {
+  await supabase.from('reels').update({ notes }).eq('id', id);
+}
+
 export async function fetchCategories(supabase: SupabaseClient): Promise<Category[]> {
   const { data, error } = await supabase
     .from('categories')

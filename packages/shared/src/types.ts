@@ -84,6 +84,7 @@ export interface Reel {
   // Champs avancés (migration 0012)
   tags: string[];
   summary: string | null;
+  notes: string | null;
   transcript: string | null;
   media_type: 'video' | 'image' | null;
 }

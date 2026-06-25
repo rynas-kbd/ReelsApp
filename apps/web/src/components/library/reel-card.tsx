@@ -1,7 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { Eye, ExternalLink } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Eye } from 'lucide-react';
 import { STRINGS, placeholderThumbnail, type ReelWithCategory } from '@reelvault/shared';
 import { Badge } from '@/components/ui/badge';
 import { formatDate, formatNumber } from '@/lib/utils';
@@ -16,8 +17,9 @@ export function ReelCard({
 }: {
   reel: ReelWithCategory;
   index?: number;
-  onOpen: (reel: ReelWithCategory) => void;
+  onOpen?: (reel: ReelWithCategory) => void;
 }) {
+  const router = useRouter();
   const thumb = reel.thumbnail_url || placeholderThumbnail(reel.shortcode ?? reel.id);
   const author = reel.author_username ? `@${reel.author_username}` : null;
   const aspect = ASPECTS[index % ASPECTS.length];
@@ -37,7 +39,7 @@ export function ReelCard({
   return (
     <button
       type="button"
-      onClick={() => onOpen(reel)}
+      onClick={() => router.push(`/reel/${reel.id}`)}
       className="group mb-3 block w-full break-inside-avoid overflow-hidden rounded-2xl border border-border-subtle bg-surface text-left shadow-soft transition-all duration-200 ease-smooth animate-fade-up hover:-translate-y-0.5 hover:border-border-strong hover:shadow-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:mb-4"
     >
       {/* Miniature (aspect variable) */}
@@ -78,8 +80,7 @@ export function ReelCard({
 
         <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           <span className="flex items-center gap-1.5 rounded-full bg-gradient-accent px-3 py-1.5 text-xs font-medium text-white shadow-glow">
-            <ExternalLink className="h-3.5 w-3.5" />
-            {STRINGS.library.openInInstagram}
+            Voir le détail
           </span>
         </div>
       </div>

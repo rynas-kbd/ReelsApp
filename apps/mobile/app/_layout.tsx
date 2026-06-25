@@ -11,17 +11,28 @@ import { ToastProvider, useToast } from '../components/Toast';
 import { usePendingShare } from '../hooks/usePendingShare';
 import { ensureAndroidChannel } from '../lib/notifications';
 import { widgetTaskHandler } from '../widgets/widget-task-handler';
-import { colors } from '../lib/theme';
+import { ThemeProvider, useTheme } from '../lib/theme';
 import { STRINGS, fetchProfile } from '@reelvault/shared';
 import { supabase } from '../lib/supabase';
 
 // Enregistre la tâche du widget une seule fois au chargement du bundle (hors composant).
-registerWidgetTaskHandler(widgetTaskHandler);
+try {
+  registerWidgetTaskHandler(widgetTaskHandler);
+} catch {
+  // Le module natif peut être absent lors du premier démarrage — non bloquant.
+}
+
+/** StatusBar dynamique selon le thème courant. */
+function ThemedStatusBar() {
+  const theme = useTheme();
+  return <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />;
+}
 
 function RootNavigator() {
   const { session, userId, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const theme = useTheme();
   const [onboardChecked, setOnboardChecked] = useState(false);
 
   // Redirection selon l'état d'authentification puis onboarding.
@@ -53,8 +64,8 @@ function RootNavigator() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: 'center' }}>
-        <ActivityIndicator color={colors.accent} />
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: 'center' }}>
+        <ActivityIndicator color={theme.colors.brand} />
       </View>
     );
   }
@@ -102,13 +113,15 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <ToastProvider>
-            <StatusBar style="light" />
-            <GlobalEffects />
-            <RootNavigator />
-          </ToastProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <ThemedStatusBar />
+              <GlobalEffects />
+              <RootNavigator />
+            </ToastProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

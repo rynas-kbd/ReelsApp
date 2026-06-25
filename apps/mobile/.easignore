@@ -1,0 +1,16 @@
+# Exclusions pour réduire la taille du tarball EAS
+# Note: android/ est intentionnellement INCLUS (bare workflow)
+
+# Build outputs inutiles pour EAS
+dist/
+web-build/
+.expo/
+
+# Deps locales (EAS installe depuis package.json)
+node_modules/
+
+# Logs
+*.log
+
+# OS
+.DS_Store

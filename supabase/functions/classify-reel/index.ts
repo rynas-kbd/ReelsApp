@@ -52,6 +52,10 @@ Deno.serve(async (req) => {
 
     // ── 2. Arbre des catégories existantes ────────────────────────────────────
     const categoryTree = await fetchCategoryTree(supabase, reel.user_id);
+    // Exclude "À trier" from the tree — prevents the model from "reusing" it (rule 4)
+    const filteredCategoryTree = categoryTree.filter(
+      (node) => node.name.toLowerCase() !== 'à trier',
+    );
 
     // URLs images pour les posts photo
     const imageUrls: string[] = [];
@@ -68,7 +72,7 @@ Deno.serve(async (req) => {
       media_type: (reel.media_type as 'video' | 'image' | null) ?? null,
       thumbnail_url: reel.thumbnail_url as string | null,
       image_urls: imageUrls,
-      categoryTree,
+      categoryTree: filteredCategoryTree,
     };
 
     // ── 3. Classification Gemini multimodale ──────────────────────────────────
@@ -87,10 +91,14 @@ Deno.serve(async (req) => {
     };
 
     // ── 4. Résolution hiérarchique des catégories ─────────────────────────────
-    const rootId = await findOrCreateCategory(supabase, reel.user_id, result.category, null);
-    let categoryId = rootId;
-    if (result.subcategory) {
-      categoryId = await findOrCreateCategory(supabase, reel.user_id, result.subcategory, rootId);
+    // "À trier" is NOT a real category — treat it as unclassified (category_id = null)
+    let categoryId: string | null = null;
+    if (result.category !== UNSORTED_CATEGORY) {
+      const rootId = await findOrCreateCategory(supabase, reel.user_id, result.category, null);
+      categoryId = rootId;
+      if (result.subcategory) {
+        categoryId = await findOrCreateCategory(supabase, reel.user_id, result.subcategory, rootId);
+      }
     }
 
     // ── 5. Mise à jour catégorie + tags + résumé ──────────────────────────────
@@ -136,7 +144,9 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         user_id: reel.user_id,
         title: 'Nouveau réel sauvegardé 🎬',
-        body: `Classé dans « ${result.subcategory ?? result.category} ».`,
+        body: categoryId
+          ? `Classé dans « ${result.subcategory ?? result.category} ».`
+          : 'En attente de classification.',
         data: { reel_id },
       }),
     }).catch(() => {});

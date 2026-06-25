@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
-  Linking,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -14,8 +13,6 @@ import {
   fetchCategoryTree,
   fetchAllTags,
   fetchReels,
-  recordView,
-  reelUrl,
   searchReelsHybrid,
   STRINGS,
   type CategoryWithChildren,
@@ -28,10 +25,14 @@ import { EmptyState } from '../../components/EmptyState';
 import { ReelCardSkeleton } from '../../components/Skeleton';
 import { supabase } from '../../lib/supabase';
 import { SUPABASE_URL } from '../../lib/env';
-import { colors, radius, spacing, typography } from '../../lib/theme';
+import { useTheme } from '../../lib/theme';
+import type { Theme } from '@reelvault/design-tokens';
 
 export default function LibraryScreen() {
   const router = useRouter();
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
   const [reels, setReels] = useState<ReelWithCategory[]>([]);
   const [tree, setTree] = useState<CategoryWithChildren[]>([]);
   const [allTags, setAllTags] = useState<string[]>([]);
@@ -133,12 +134,9 @@ export default function LibraryScreen() {
     }
   }, [load, activeCategory, activeTags]);
 
-  const openReel = useCallback(async (reel: ReelWithCategory) => {
-    const url = reel.ig_url ?? (reel.shortcode ? reelUrl(reel.shortcode) : null);
-    if (!url) return;
-    void recordView(supabase, reel.id);
-    await Linking.openURL(url);
-  }, []);
+  const openReel = useCallback((reel: ReelWithCategory) => {
+    router.push(`/reel/${reel.id}`);
+  }, [router]);
 
   function toggleTag(tag: string) {
     setActiveTags((prev) =>
@@ -185,12 +183,12 @@ export default function LibraryScreen() {
 
       {/* Barre de recherche */}
       <View style={styles.searchWrap}>
-        <Ionicons name="search" size={18} color={colors.textMuted} />
+        <Ionicons name="search" size={18} color={theme.colors.textMuted} />
         <TextInput
           value={search}
           onChangeText={setSearch}
           placeholder={STRINGS.library.searchPlaceholder}
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor={theme.colors.textMuted}
           style={styles.searchInput}
           returnKeyType="search"
         />
@@ -198,7 +196,7 @@ export default function LibraryScreen() {
           <Ionicons
             name="close-circle"
             size={18}
-            color={colors.textMuted}
+            color={theme.colors.textMuted}
             onPress={() => setSearch('')}
           />
         ) : null}
@@ -302,8 +300,8 @@ export default function LibraryScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={colors.accent}
-              colors={[colors.accent]}
+              tintColor={theme.colors.brand}
+              colors={[theme.colors.brand]}
             />
           }
           showsVerticalScrollIndicator={false}
@@ -316,46 +314,49 @@ export default function LibraryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    marginHorizontal: spacing.lg,
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    color: colors.text,
-    fontSize: typography.sizes.base,
-    paddingVertical: spacing.md,
-  },
-  chipsScroll: {
-    flexGrow: 0,
-    marginTop: spacing.md,
-  },
-  subChipsScroll: {
-    flexGrow: 0,
-    marginTop: spacing.xs,
-  },
-  tagsScroll: {
-    flexGrow: 0,
-    marginTop: spacing.xs,
-  },
-  chips: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.sm,
-  },
-  listContent: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing['2xl'],
-  },
-  emptyContainer: {
-    flexGrow: 1,
-  },
-});
+function makeStyles(theme: Theme) {
+  const { colors, radius, spacing, typography } = theme;
+  return StyleSheet.create({
+    searchWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+      marginHorizontal: spacing.lg,
+      paddingHorizontal: spacing.md,
+      gap: spacing.sm,
+    },
+    searchInput: {
+      flex: 1,
+      color: colors.text,
+      fontSize: typography.sizes.base,
+      paddingVertical: spacing.md,
+    },
+    chipsScroll: {
+      flexGrow: 0,
+      marginTop: spacing.md,
+    },
+    subChipsScroll: {
+      flexGrow: 0,
+      marginTop: spacing.xs,
+    },
+    tagsScroll: {
+      flexGrow: 0,
+      marginTop: spacing.xs,
+    },
+    chips: {
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.sm,
+    },
+    listContent: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing['2xl'],
+    },
+    emptyContainer: {
+      flexGrow: 1,
+    },
+  });
+}

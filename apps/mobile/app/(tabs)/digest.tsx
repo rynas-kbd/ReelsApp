@@ -1,15 +1,15 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Image,
-  Linking,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   STRINGS,
@@ -17,7 +17,6 @@ import {
   fetchLatestDigest,
   placeholderThumbnail,
   rateDigest,
-  recordView,
   type Digest,
   type DigestWithReels,
 } from '@reelvault/shared';
@@ -27,12 +26,15 @@ import { StarRating } from '../../components/secondbrain/StarRating';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
-import { formatDateFr } from '../../lib/theme';
-import { colors, radius, spacing, typography } from '../../lib/theme';
+import { formatDateFr, useTheme } from '../../lib/theme';
+import type { Theme } from '@reelvault/design-tokens';
 
 export default function DigestScreen() {
   const { userId } = useAuth();
   const { show } = useToast();
+  const router = useRouter();
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const [digest, setDigest] = useState<DigestWithReels | null>(null);
   const [history, setHistory] = useState<Digest[]>([]);
@@ -109,9 +111,8 @@ export default function DigestScreen() {
     }
   }
 
-  async function openReel(igUrl: string, reelId: string) {
-    await recordView(supabase, reelId);
-    await Linking.openURL(igUrl).catch(() => {});
+  function openReel(reelId: string) {
+    router.push(`/reel/${reelId}`);
   }
 
   if (loading) {
@@ -119,7 +120,7 @@ export default function DigestScreen() {
       <Screen>
         <GradientHeader title={STRINGS.digest.title} />
         <View style={styles.center}>
-          <ActivityIndicator color={colors.accent} />
+          <ActivityIndicator color={theme.colors.brand} />
         </View>
       </Screen>
     );
@@ -132,9 +133,9 @@ export default function DigestScreen() {
         right={
           <Pressable onPress={handleGenerate} disabled={generating} style={styles.genBtn}>
             {generating ? (
-              <ActivityIndicator size="small" color={colors.accent} />
+              <ActivityIndicator size="small" color={theme.colors.brand} />
             ) : (
-              <Ionicons name="refresh-outline" size={20} color={colors.accent} />
+              <Ionicons name="refresh-outline" size={20} color={theme.colors.brand} />
             )}
           </Pressable>
         }
@@ -146,20 +147,20 @@ export default function DigestScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.accent}
+            tintColor={theme.colors.brand}
           />
         }
         ListHeaderComponent={
           <View style={styles.body}>
             {!digest ? (
               <View style={styles.emptyCard}>
-                <Ionicons name="sparkles-outline" size={36} color={colors.textMuted} />
+                <Ionicons name="sparkles-outline" size={36} color={theme.colors.textMuted} />
                 <Text style={styles.emptyText}>{STRINGS.digest.empty}</Text>
                 <GradientButton
                   label={generating ? STRINGS.digest.generating : STRINGS.digest.generateNow}
                   onPress={handleGenerate}
                   loading={generating}
-                  style={{ marginTop: spacing.md }}
+                  style={{ marginTop: theme.spacing.md }}
                 />
               </View>
             ) : (
@@ -172,7 +173,7 @@ export default function DigestScreen() {
                     <View style={styles.metaRow}>
                       {digest.frequency && (
                         <View style={styles.metaChip}>
-                          <Ionicons name="calendar-outline" size={12} color={colors.textMuted} />
+                          <Ionicons name="calendar-outline" size={12} color={theme.colors.textMuted} />
                           <Text style={styles.metaText}>
                             {STRINGS.digest.frequencyLabel(digest.frequency)}
                           </Text>
@@ -203,7 +204,7 @@ export default function DigestScreen() {
                           styles.reelCard,
                           { opacity: pressed ? 0.85 : 1 },
                         ]}
-                        onPress={() => openReel(reel.ig_url, reel.id)}
+                        onPress={() => openReel(reel.id)}
                       >
                         <Image
                           source={{ uri: thumb }}
@@ -254,7 +255,7 @@ export default function DigestScreen() {
                       onRate={handleRate}
                     />
                     {ratingSaving && (
-                      <ActivityIndicator size="small" color={colors.textMuted} />
+                      <ActivityIndicator size="small" color={theme.colors.textMuted} />
                     )}
                   </View>
                 </View>
@@ -286,7 +287,7 @@ export default function DigestScreen() {
                     </View>
                     {d.rating ? (
                       <View style={styles.historyRating}>
-                        <Ionicons name="star" size={14} color={colors.warning} />
+                        <Ionicons name="star" size={14} color={theme.colors.warning} />
                         <Text style={styles.historyRatingText}>{d.rating}/5</Text>
                       </View>
                     ) : (
@@ -307,181 +308,184 @@ export default function DigestScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  genBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.full,
-    backgroundColor: colors.accentSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  body: {
-    padding: spacing.lg,
-    gap: spacing.lg,
-    paddingBottom: spacing['3xl'],
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.xl,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  labelUpper: {
-    color: colors.textMuted,
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  summary: {
-    color: colors.text,
-    fontSize: typography.sizes.sm,
-    lineHeight: 22,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  metaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaText: {
-    color: colors.textMuted,
-    fontSize: typography.sizes.xs,
-  },
-  // Grille réels
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  reelCard: {
-    width: '48%',
-    borderRadius: radius.xl,
-    overflow: 'hidden',
-    backgroundColor: colors.surface2,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  reelThumb: {
-    width: '100%',
-    aspectRatio: 4 / 5,
-    backgroundColor: colors.surface3,
-  },
-  reelOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  catBadge: {
-    position: 'absolute',
-    top: spacing.xs,
-    left: spacing.xs,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.xs + 2,
-    paddingVertical: 2,
-  },
-  catText: {
-    fontSize: 10,
-    fontWeight: typography.weights.semibold,
-  },
-  reelInfo: {
-    padding: spacing.sm,
-    gap: 3,
-  },
-  reelTitle: {
-    color: colors.text,
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.medium,
-    lineHeight: 16,
-  },
-  reelReason: {
-    color: colors.textSecondary,
-    fontSize: 10,
-    fontStyle: 'italic',
-    lineHeight: 14,
-  },
-  // Vote
-  rateTitle: {
-    color: colors.text,
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.semibold,
-  },
-  rateHelp: {
-    color: colors.textMuted,
-    fontSize: typography.sizes.xs,
-  },
-  starsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  // Historique
-  historyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  historyPeriod: {
-    color: colors.text,
-    fontSize: typography.sizes.sm,
-  },
-  historyDate: {
-    color: colors.textMuted,
-    fontSize: typography.sizes.xs,
-    marginTop: 2,
-  },
-  historyRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  historyRatingText: {
-    color: colors.warning,
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.medium,
-  },
-  notRated: {
-    color: colors.textMuted,
-    fontSize: typography.sizes.xs,
-  },
-  // Vide
-  emptyCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  emptyText: {
-    color: colors.textSecondary,
-    fontSize: typography.sizes.sm,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  noHistory: {
-    color: colors.textMuted,
-    fontSize: typography.sizes.xs,
-    textAlign: 'center',
-  },
-});
+function makeStyles(theme: Theme) {
+  const { colors, radius, spacing, typography } = theme;
+  return StyleSheet.create({
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    genBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: radius.full,
+      backgroundColor: colors.brandSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    body: {
+      padding: spacing.lg,
+      gap: spacing.lg,
+      paddingBottom: spacing['3xl'],
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.xl,
+      padding: spacing.md,
+      gap: spacing.sm,
+    },
+    labelUpper: {
+      color: colors.textMuted,
+      fontSize: typography.sizes.xs,
+      fontWeight: typography.weights.semibold,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    summary: {
+      color: colors.text,
+      fontSize: typography.sizes.sm,
+      lineHeight: 22,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+      marginTop: spacing.xs,
+    },
+    metaChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    metaText: {
+      color: colors.textMuted,
+      fontSize: typography.sizes.xs,
+    },
+    // Grille réels
+    grid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    reelCard: {
+      width: '48%',
+      borderRadius: radius.xl,
+      overflow: 'hidden',
+      backgroundColor: colors.surface2,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    reelThumb: {
+      width: '100%',
+      aspectRatio: 4 / 5,
+      backgroundColor: colors.surface3,
+    },
+    reelOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.3)',
+    },
+    catBadge: {
+      position: 'absolute',
+      top: spacing.xs,
+      left: spacing.xs,
+      borderRadius: radius.full,
+      paddingHorizontal: spacing.xs + 2,
+      paddingVertical: 2,
+    },
+    catText: {
+      fontSize: 10,
+      fontWeight: typography.weights.semibold,
+    },
+    reelInfo: {
+      padding: spacing.sm,
+      gap: 3,
+    },
+    reelTitle: {
+      color: colors.text,
+      fontSize: typography.sizes.xs,
+      fontWeight: typography.weights.medium,
+      lineHeight: 16,
+    },
+    reelReason: {
+      color: colors.textSecondary,
+      fontSize: 10,
+      fontStyle: 'italic',
+      lineHeight: 14,
+    },
+    // Vote
+    rateTitle: {
+      color: colors.text,
+      fontSize: typography.sizes.sm,
+      fontWeight: typography.weights.semibold,
+    },
+    rateHelp: {
+      color: colors.textMuted,
+      fontSize: typography.sizes.xs,
+    },
+    starsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.xs,
+    },
+    // Historique
+    historyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      borderRadius: radius.xl,
+      padding: spacing.md,
+      marginBottom: spacing.xs,
+    },
+    historyPeriod: {
+      color: colors.text,
+      fontSize: typography.sizes.sm,
+    },
+    historyDate: {
+      color: colors.textMuted,
+      fontSize: typography.sizes.xs,
+      marginTop: 2,
+    },
+    historyRating: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    historyRatingText: {
+      color: colors.warning,
+      fontSize: typography.sizes.sm,
+      fontWeight: typography.weights.medium,
+    },
+    notRated: {
+      color: colors.textMuted,
+      fontSize: typography.sizes.xs,
+    },
+    // Vide
+    emptyCard: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      borderRadius: radius.xl,
+      padding: spacing.xl,
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    emptyText: {
+      color: colors.textSecondary,
+      fontSize: typography.sizes.sm,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    noHistory: {
+      color: colors.textMuted,
+      fontSize: typography.sizes.xs,
+      textAlign: 'center',
+    },
+  });
+}

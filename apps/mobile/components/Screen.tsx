@@ -2,12 +2,13 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, spacing, typography } from '../lib/theme';
+import { useTheme } from '../lib/theme';
 
-/** Conteneur d'écran : fond dark + safe area. */
+/** Conteneur d'écran : fond thémé + safe area. */
 export function Screen({ children }: { children: React.ReactNode }) {
+  const theme = useTheme();
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.bg }]} edges={['top', 'left', 'right']}>
       {children}
     </SafeAreaView>
   );
@@ -23,17 +24,20 @@ export function GradientHeader({
   subtitle?: string;
   right?: React.ReactNode;
 }) {
+  const theme = useTheme();
   return (
     <LinearGradient
-      colors={[colors.accentSoft, 'transparent']}
+      colors={[theme.colors.brandSoft, 'transparent']}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
       style={styles.header}
     >
       <View style={styles.headerRow}>
         <View style={styles.headerTextWrap}>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          <Text style={[styles.title, { color: theme.colors.text }]}>{title}</Text>
+          {subtitle ? (
+            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>{subtitle}</Text>
+          ) : null}
         </View>
         {right ? <View>{right}</View> : null}
       </View>
@@ -43,18 +47,20 @@ export function GradientHeader({
 
 /** Petit titre de section. */
 export function SectionLabel({ children }: { children: string }) {
-  return <Text style={styles.section}>{children}</Text>;
+  const theme = useTheme();
+  return (
+    <Text style={[styles.section, { color: theme.colors.textMuted }]}>{children}</Text>
+  );
 }
 
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.bg,
   },
   header: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
   headerRow: {
     flexDirection: 'row',
@@ -65,22 +71,19 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   title: {
-    color: colors.text,
-    fontSize: typography.sizes['3xl'],
-    fontWeight: typography.weights.bold,
+    fontSize: 30,
+    fontWeight: '700',
   },
   subtitle: {
-    color: colors.textSecondary,
-    fontSize: typography.sizes.sm,
+    fontSize: 14,
     marginTop: 2,
   },
   section: {
-    color: colors.textMuted,
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.semibold,
+    fontSize: 12,
+    fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
-    marginBottom: spacing.sm,
-    marginTop: spacing.lg,
+    marginBottom: 8,
+    marginTop: 16,
   },
 });
