@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { CalendarDays, Search, Library as LibraryIcon, SearchX, X } from 'lucide-react';
 import {
   STRINGS,
   fetchReels,
+  fetchReelById,
   fetchCategoryTree,
   fetchCategoryCounts,
   fetchAuthors,
@@ -19,6 +20,7 @@ import {
 } from '@reelvault/shared';
 import { createClient } from '@/lib/supabase/client';
 import { useDebounce } from '@/hooks/use-debounce';
+import { useReelsRealtime } from '@/hooks/use-reels-realtime';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,7 +32,7 @@ import {
 } from '@/components/ui/select';
 import { EmptyState } from '@/components/empty-state';
 import { ReelCard } from '@/components/library/reel-card';
-import { ReelGridSkeleton } from '@/components/library/reel-card-skeleton';
+import { ReelCardSkeleton, ReelGridSkeleton } from '@/components/library/reel-card-skeleton';
 import { CategoryTree } from '@/components/library/category-tree';
 import { TagFilter } from '@/components/library/tag-filter';
 import { AddReelDialog } from '@/components/library/add-reel-dialog';
@@ -96,6 +98,10 @@ export function LibraryView() {
     [debouncedSearch, categoryId, categoryIds, activeTags, authorUsername, dateFrom, dateTo, sort],
   );
 
+  const isFiltered =
+    Boolean(debouncedSearch) || Boolean(categoryId) || Boolean(authorUsername) ||
+    activeTags.length > 0 || Boolean(dateFrom) || Boolean(dateTo);
+
   // Métadonnées — chargées une fois / rafraîchies après ajout
   const loadMeta = useCallback(async () => {
     try {
@@ -158,11 +164,18 @@ export function LibraryView() {
   useEffect(() => { loadMeta(); }, [loadMeta]);
   useEffect(() => { loadReels(); }, [loadReels]);
 
+  // loadMore: charge la page suivante (scroll infini)
   async function loadMore() {
+    if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
       const data = await fetchReels(supabase, filters, { limit: PAGE_SIZE, offset });
-      setReels((prev) => [...prev, ...data]);
+      setReels((prev) => {
+        // Déduplication : un réel injecté par Realtime ne doit pas être dupliqué
+        const existingIds = new Set(prev.map((r) => r.id));
+        const fresh = data.filter((r) => !existingIds.has(r.id));
+        return [...prev, ...fresh];
+      });
       setOffset((prev) => prev + data.length);
       setHasMore(data.length === PAGE_SIZE);
     } catch {
@@ -172,6 +185,82 @@ export function LibraryView() {
     }
   }
 
+  // ─── Scroll infini (IntersectionObserver) ────────────────────────────────────
+  // On garde la dernière version de loadMore + ses guards dans des refs pour
+  // éviter les stale closures dans l'observer (monté une seule fois).
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const loadMoreRef = useRef(loadMore);
+  const hasMoreRef = useRef(hasMore);
+  const loadingMoreRef = useRef(loadingMore);
+  const loadingRef = useRef(loading);
+
+  useEffect(() => { loadMoreRef.current = loadMore; });
+  useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
+  useEffect(() => { loadingMoreRef.current = loadingMore; }, [loadingMore]);
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          hasMoreRef.current &&
+          !loadingMoreRef.current &&
+          !loadingRef.current
+        ) {
+          void loadMoreRef.current();
+        }
+      },
+      { rootMargin: '300px', threshold: 0 },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []); // monté une seule fois ; les refs gardent les valeurs fraîches
+
+  // ─── Realtime : mises à jour progressives ────────────────────────────────────
+  // Ref pour lire la liste courante dans les callbacks sans stale closure
+  const reelsRef = useRef(reels);
+  useEffect(() => { reelsRef.current = reels; }, [reels]);
+
+  const handleRealtimeInsert = useCallback(
+    async (id: string) => {
+      // N'insérer en tête que si aucun filtre actif et tri « récent »
+      if (isFiltered || sort !== 'recent') return;
+      const reel = await fetchReelById(supabase, id);
+      if (!reel) return;
+      setReels((prev) => {
+        if (prev.some((r) => r.id === id)) return prev; // déjà là (ex : ajout manuel)
+        return [reel, ...prev];
+      });
+    },
+    [supabase, isFiltered, sort],
+  );
+
+  const handleRealtimeUpdate = useCallback(
+    async (id: string) => {
+      // Ne re-fetcher que si le réel est visible dans la vue courante
+      if (!reelsRef.current.some((r) => r.id === id)) return;
+      const updated = await fetchReelById(supabase, id);
+      if (!updated) return;
+      setReels((prev) => prev.map((r) => (r.id === id ? updated : r)));
+    },
+    [supabase],
+  );
+
+  const handleRealtimeDelete = useCallback((id: string) => {
+    setReels((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
+  useReelsRealtime({
+    supabase,
+    onInsert: handleRealtimeInsert,
+    onUpdate: handleRealtimeUpdate,
+    onDelete: handleRealtimeDelete,
+  });
+
+  // ─── Interactions ─────────────────────────────────────────────────────────────
   function openReel(reel: ReelWithCategory) {
     const url = reel.ig_url || (reel.shortcode ? reelUrl(reel.shortcode) : null);
     if (url) window.open(url, '_blank', 'noopener,noreferrer');
@@ -186,10 +275,6 @@ export function LibraryView() {
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
     );
   }
-
-  const isFiltered =
-    Boolean(debouncedSearch) || Boolean(categoryId) || Boolean(authorUsername) ||
-    activeTags.length > 0 || Boolean(dateFrom) || Boolean(dateTo);
 
   const hasDateFilter = Boolean(dateFrom) || Boolean(dateTo);
 
@@ -343,22 +428,20 @@ export function LibraryView() {
               />
             )
           ) : (
-            <>
-              <div className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-3 xl:columns-4">
-                {reels.map((reel, i) => (
-                  <ReelCard key={reel.id} reel={reel} index={i} onOpen={openReel} />
+            <div className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-3 xl:columns-4">
+              {reels.map((reel, i) => (
+                <ReelCard key={reel.id} reel={reel} index={i} onOpen={openReel} />
+              ))}
+              {/* Squelettes de chargement progressif pendant loadMore */}
+              {loadingMore &&
+                Array.from({ length: 6 }).map((_, i) => (
+                  <ReelCardSkeleton key={`loading-${i}`} index={reels.length + i} />
                 ))}
-              </div>
-
-              {hasMore && (
-                <div className="mt-8 flex justify-center">
-                  <Button variant="secondary" onClick={loadMore} disabled={loadingMore}>
-                    {loadingMore ? STRINGS.common.loading : 'Charger plus'}
-                  </Button>
-                </div>
-              )}
-            </>
+            </div>
           )}
+
+          {/* Sentinelle invisible pour l'IntersectionObserver (scroll infini) */}
+          <div ref={sentinelRef} aria-hidden className="h-px" />
         </div>
       </div>
     </div>

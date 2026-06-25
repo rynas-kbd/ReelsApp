@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileDown, FileText, Instagram, Loader2, LogOut, Moon, RefreshCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -41,6 +41,18 @@ export function SettingsView({ userId }: { userId: string }) {
   const [disconnecting, setDisconnecting] = useState(false);
   const [exporting, setExporting] = useState<'csv' | 'pdf' | null>(null);
   const [reprocessing, setReprocessing] = useState(false);
+  const [reprocessProgress, setReprocessProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // Ref pour nettoyer le canal Realtime si le composant se démonte en cours de traitement
+  const reprocessChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (reprocessChannelRef.current) {
+        supabase.removeChannel(reprocessChannelRef.current);
+      }
+    };
+  }, [supabase]);
 
   useEffect(() => {
     (async () => {
@@ -141,27 +153,97 @@ export function SettingsView({ userId }: { userId: string }) {
   async function reprocessLibrary() {
     if (!window.confirm(STRINGS.reprocess.buttonHelp + '\n\nContinuer ?')) return;
     setReprocessing(true);
+
+    let guardTimer: ReturnType<typeof setTimeout> | null = null;
+
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !session) throw new Error('non authentifié');
+
+      // Compte total de réels (RLS filtre automatiquement par user_id)
+      const { count } = await supabase
+        .from('reels')
+        .select('id', { count: 'exact', head: true });
+      const total = count ?? 0;
+
+      if (total === 0) {
+        toast.success(STRINGS.reprocess.done);
+        setReprocessing(false);
+        return;
+      }
+
+      setReprocessProgress({ done: 0, total });
+
+      // Suivi des réels traités (classifiés ou échoués = état final)
+      const seen = new Set<string>();
+
+      const channel = supabase
+        .channel(`reprocess-${user.id}`)
+        .on(
+          // @ts-expect-error — surcharge TS trop stricte pour 'postgres_changes'
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'reels',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload: { new: Record<string, unknown> }) => {
+            const id = payload.new?.id as string | undefined;
+            const status = payload.new?.status as string | undefined;
+            // Ne compter que les états finaux (classified ou failed)
+            if (!id || (status !== 'classified' && status !== 'failed')) return;
+            seen.add(id);
+            const done = seen.size;
+            setReprocessProgress({ done, total });
+            if (done >= total) {
+              if (guardTimer) clearTimeout(guardTimer);
+              supabase.removeChannel(channel);
+              reprocessChannelRef.current = null;
+              setReprocessing(false);
+              setReprocessProgress(null);
+              toast.success(STRINGS.reprocess.done);
+            }
+          },
+        )
+        .subscribe();
+
+      reprocessChannelRef.current = channel;
+
+      // Filet de sécurité : ferme le canal après 15 min (cas de connexion perdue)
+      guardTimer = setTimeout(() => {
+        supabase.removeChannel(channel);
+        reprocessChannelRef.current = null;
+        setReprocessing(false);
+        setReprocessProgress(null);
+      }, 15 * 60 * 1000);
+
+      // Lance le re-traitement (retourne 202 immédiatement, traite en arrière-plan)
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/reprocess-library`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${session?.access_token ?? ''}`,
+            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({}),
         },
       );
-      if (!res.ok) throw new Error();
-      toast.success(STRINGS.reprocess.done);
+
+      if (!res.ok) throw new Error('reprocess failed');
+      // Ne pas afficher le toast ici — on attend que le canal Realtime signale la fin.
+
     } catch {
+      if (guardTimer) clearTimeout(guardTimer);
+      if (reprocessChannelRef.current) {
+        supabase.removeChannel(reprocessChannelRef.current);
+        reprocessChannelRef.current = null;
+      }
       toast.error(STRINGS.reprocess.error);
-    } finally {
       setReprocessing(false);
+      setReprocessProgress(null);
     }
   }
 
@@ -337,11 +419,35 @@ export function SettingsView({ userId }: { userId: string }) {
           <CardTitle>{STRINGS.reprocess.buttonLabel}</CardTitle>
           <CardDescription>{STRINGS.reprocess.buttonHelp}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <Button variant="secondary" onClick={reprocessLibrary} disabled={reprocessing}>
             {reprocessing ? <Loader2 className="animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             {reprocessing ? STRINGS.reprocess.running : STRINGS.reprocess.buttonLabel}
           </Button>
+
+          {/* Barre de progression live (visible uniquement pendant le re-traitement) */}
+          {reprocessProgress && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-text-muted">
+                <span>Traitement en cours…</span>
+                <span className="tabular-nums">
+                  {reprocessProgress.done} / {reprocessProgress.total}
+                </span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+                <div
+                  className="h-full rounded-full bg-accent transition-all duration-500 ease-out"
+                  style={{
+                    width: `${
+                      reprocessProgress.total
+                        ? Math.round((reprocessProgress.done / reprocessProgress.total) * 100)
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

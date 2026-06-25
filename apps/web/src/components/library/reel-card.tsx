@@ -49,10 +49,22 @@ export function ReelCard({
           alt={reel.title || 'Réel Instagram'}
           fill
           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-          className="object-cover transition-transform duration-300 ease-smooth group-hover:scale-[1.04]"
+          className={`object-cover transition-transform duration-300 ease-smooth group-hover:scale-[1.04] ${
+            reel.status === 'pending' || reel.status === 'enriched' ? 'opacity-60' : ''
+          }`}
           unoptimized
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-90" />
+
+        {/* Badge « Analyse… » affiché pendant le traitement IA (pending / enriched) */}
+        {(reel.status === 'pending' || reel.status === 'enriched') && (
+          <div className="absolute right-2.5 top-2.5">
+            <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] text-white/90 backdrop-blur-sm">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+              {reel.status === 'pending' ? 'En attente…' : 'Analyse…'}
+            </span>
+          </div>
+        )}
 
         {catLabel && reel.category && (
           <div className="absolute left-2.5 top-2.5">

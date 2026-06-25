@@ -39,6 +39,13 @@ Deno.serve(async (req) => {
 
     const ids = (reels ?? []).map((r: { id: string }) => r.id);
 
+    // Réinitialise tous les réels à 'pending' immédiatement : cela déclenche les
+    // événements Realtime côté client, ce qui affiche le badge « En attente… » sur
+    // toutes les cartes de la bibliothèque avant même que le traitement commence.
+    if (ids.length > 0) {
+      await supabase.from('reels').update({ status: 'pending' }).in('id', ids);
+    }
+
     // Traitement en arrière-plan (ne bloque pas la réponse)
     async function processAll(reelIds: string[]) {
       for (let i = 0; i < reelIds.length; i += BATCH_SIZE) {
