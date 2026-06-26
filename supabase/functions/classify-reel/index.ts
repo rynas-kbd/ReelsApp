@@ -57,10 +57,19 @@ Deno.serve(async (req) => {
       (node) => node.name.toLowerCase() !== 'à trier',
     );
 
-    // URLs images pour les posts photo
+    // URLs images pour les posts photo/carrousel
+    const rawMeta = (reel.raw_metadata as Record<string, unknown> | null) ?? {};
+    const isCarousel = rawMeta['source'] === 'ig_post';
+
     const imageUrls: string[] = [];
-    if (reel.media_type !== 'video' && reel.thumbnail_url) {
-      imageUrls.push(reel.thumbnail_url as string);
+    if (reel.media_type !== 'video') {
+      // Préférer le tableau d'images ré-hébergées (carrousel enrichi) s'il existe
+      const storedImageUrls = rawMeta['image_urls'];
+      if (Array.isArray(storedImageUrls) && storedImageUrls.length > 0) {
+        imageUrls.push(...(storedImageUrls as string[]).slice(0, 8));
+      } else if (reel.thumbnail_url) {
+        imageUrls.push(reel.thumbnail_url as string);
+      }
     }
 
     const classifyInput = {
@@ -72,6 +81,7 @@ Deno.serve(async (req) => {
       media_type: (reel.media_type as 'video' | 'image' | null) ?? null,
       thumbnail_url: reel.thumbnail_url as string | null,
       image_urls: imageUrls,
+      is_carousel: isCarousel,
       categoryTree: filteredCategoryTree,
     };
 

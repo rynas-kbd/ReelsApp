@@ -23,6 +23,7 @@ export interface ClassifyInput {
   media_type?: 'video' | 'image' | null;
   thumbnail_url?: string | null;  // URL publique de la miniature (bucket)
   image_urls?: string[];          // URLs des images (post photo)
+  is_carousel?: boolean;          // true = carrousel Instagram (plusieurs slides, seule la couverture est disponible)
   categoryTree: CategoryNode[];   // arbre existant de l'utilisateur
 }
 
@@ -46,8 +47,8 @@ export async function classifyWithKey(
     imageUrlsToSend.push(input.thumbnail_url);
   } else if (input.media_type === 'image' || !input.media_type) {
     if (input.image_urls?.length) {
-      // Max 3 images pour limiter les tokens
-      imageUrlsToSend.push(...input.image_urls.slice(0, 3));
+      // Max 8 images (carrousel jusqu'à 10 slides, Gemini Flash gère le multimodal à faible coût)
+      imageUrlsToSend.push(...input.image_urls.slice(0, 8));
     } else if (input.thumbnail_url) {
       imageUrlsToSend.push(input.thumbnail_url);
     }
@@ -154,6 +155,16 @@ function buildPrompt(input: ClassifyInput): string {
     }).join('\n');
   }
 
+  // Note contextuelle sur le type de média
+  let mediaNote: string;
+  if (input.media_type === 'video') {
+    mediaNote = 'ℹ️ La miniature ci-dessus est la couverture du réel vidéo. Les paroles ont été transcrites et fournies dans "Paroles / sous-titres" si disponibles.';
+  } else if (input.is_carousel) {
+    mediaNote = `ℹ️ Il s'agit d'un CARROUSEL Instagram (post à plusieurs slides). L'image montrée est UNIQUEMENT la couverture (1ʳᵉ slide). Tu ne vois pas les autres slides. Appuie-toi FORTEMENT sur la légende et le titre pour comprendre le contenu COMPLET du carrousel — ils décrivent souvent l'ensemble des slides. Résume et classe en fonction de TOUT le contenu décrit, pas seulement de ce qui est visible sur la couverture.`;
+  } else {
+    mediaNote = 'ℹ️ L\'image ci-dessus est le post Instagram à classer.';
+  }
+
   return `Tu es un assistant qui classe des réels Instagram dans des catégories hiérarchiques, en français.
 
 ARBRE DES CATÉGORIES EXISTANTES (2 niveaux max) :
@@ -162,10 +173,7 @@ ${catTree}
 CONTENU À CLASSER :
 ${ctx}
 
-${input.media_type === 'video'
-  ? 'ℹ️ La miniature ci-dessus est la couverture du réel vidéo. Les paroles ont été transcrites et fournies dans "Paroles / sous-titres" si disponibles.'
-  : 'ℹ️ Les images ci-dessus sont du post Instagram à classer.'
-}
+${mediaNote}
 
 RÈGLES :
 1. Analyse le SUJET réel du contenu (sport, cuisine, humour, tech, voyage, etc.).
