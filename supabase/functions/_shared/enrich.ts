@@ -45,21 +45,6 @@ export async function fetchReelMetadata(
       endpoint: `https://${host}/media_info?code_or_id_or_url=${encodeURIComponent(url)}`,
       headers: { 'x-rapidapi-key': apiKey, 'x-rapidapi-host': host },
     });
-    attemptsToTry.push({
-      method: 'GET',
-      endpoint: `https://${host}/media_info?code_or_id_or_url=${shortcode}`,
-      headers: { 'x-rapidapi-key': apiKey, 'x-rapidapi-host': host },
-    });
-    attemptsToTry.push({
-      method: 'POST',
-      endpoint: `https://instagram120.p.rapidapi.com/api/instagram/links`,
-      headers: {
-        'x-rapidapi-key': apiKey,
-        'x-rapidapi-host': 'instagram120.p.rapidapi.com',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url }),
-    });
   } else if (host.includes('instagram-media-api')) {
     attemptsToTry.push({
       method: 'POST',
@@ -128,7 +113,7 @@ export async function fetchReelMetadata(
         const bodyText = await res.text().catch(() => '');
         console.error(`[enrich] HTTP ${res.status}: ${bodyText.slice(0, 200)}`);
         if (res.status === 429) {
-          return { ok: false, quota: true, error: `HTTP 429 ${bodyText.slice(0, 100)}` };
+          return { ok: false, quota: true, cooldownMs: 60 * 1000, error: `HTTP 429 Rate limit par minute atteint` };
         }
         continue;
       }
