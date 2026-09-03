@@ -30,49 +30,92 @@ export async function fetchReelMetadata(
   apiKey: string,
 ): Promise<Attempt<ReelMetadata>> {
   const url = reelUrl(shortcode);
-  const host = Deno.env.get('RAPIDAPI_HOST') ?? 'instagram120.p.rapidapi.com';
+  const host = Deno.env.get('RAPIDAPI_HOST') ?? 'instagram-media-api.p.rapidapi.com';
+
+  const isMediaApi = host.includes('instagram-media-api');
+  const isFlashApi = host.includes('flashapi');
+  const isStableScraper = host.includes('instagram-scraper-stable-api');
+
+  let method = 'POST';
+  let endpoint = `https://${host}/api/instagram/links`;
+  const headers: Record<string, string> = {
+    'x-rapidapi-key': apiKey,
+    'x-rapidapi-host': host,
+  };
+  let body: string | undefined = undefined;
+
+  if (isMediaApi) {
+    method = 'POST';
+    endpoint = `https://${host}/user/post`;
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify({ url, shortcode, limit: 1 });
+  } else if (isFlashApi) {
+    method = 'GET';
+    endpoint = `https://${host}/ig/post_info/?shortcode=${shortcode}&url=${encodeURIComponent(url)}&nocors=false`;
+    headers['Content-Type'] = 'application/json';
+  } else if (isStableScraper) {
+    method = 'POST';
+    endpoint = `https://${host}/get_ig_post_details.php`;
+    headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    body = new URLSearchParams({
+      shortcode_or_url: url,
+      url: url,
+      shortcode: shortcode,
+    }).toString();
+  } else {
+    method = 'POST';
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify({ url });
+  }
 
   try {
-    const res = await fetch(`https://${host}/api/instagram/links`, {
-      method: 'POST',
-      headers: {
-        'x-rapidapi-key': apiKey,
-        'x-rapidapi-host': host,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url }),
+    const res = await fetch(endpoint, {
+      method,
+      headers,
+      body,
     });
 
     if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      return { ok: false, quota: res.status === 429, error: `HTTP ${res.status} ${body.slice(0, 200)}` };
+      const bodyText = await res.text().catch(() => '');
+      return { ok: false, quota: res.status === 429, error: `HTTP ${res.status} ${bodyText.slice(0, 200)}` };
     }
 
     const data = await res.json();
     const item = Array.isArray(data) ? data[0] : data;
     if (!item) return { ok: false, error: 'réponse vide' };
 
-    const meta = (item.meta ?? {}) as Record<string, unknown>;
-    const pictureUrl = (item.pictureUrl as string) ?? null;
-    const username = (meta.username as string) ?? null;
+    const meta = (item.meta ?? item.owner ?? item.user ?? item) as Record<string, unknown>;
+    const pictureUrl =
+      (item.pictureUrl as string) ??
+      (item.thumbnail_url as string) ??
+      (item.display_url as string) ??
+      (item.cover_url as string) ??
+      (item.image_versions2?.candidates?.[0]?.url as string) ??
+      null;
 
-    // Légende complète : essayer les champs courants de l'API
-    const rawCaption = (
+    const username =
+      (meta.username as string) ??
+      (item.author_username as string) ??
+      (item.username as string) ??
+      null;
+
+    const rawCaption =
       (meta.caption as string) ??
       (meta.text as string) ??
       (meta.description as string) ??
       (meta.title as string) ??
-      null
-    );
+      (item.caption?.text as string) ??
+      (item.caption as string) ??
+      null;
 
-    // URL de la vidéo (premier élément de `urls`)
-    const videoUrl = (item.urls as Array<{ url?: string }>)?.[0]?.url ?? null;
+    const videoUrl =
+      (item.urls as Array<{ url?: string }>)?.[0]?.url ??
+      (item.video_url as string) ??
+      (item.video_versions?.[0]?.url as string) ??
+      null;
 
-    // Type de média
     const media_type: 'video' | 'image' = videoUrl ? 'video' : 'image';
 
-    // URLs des images (pour les posts photo / carrousel)
-    // Certaines APIs renvoient item.images (tableau) ou item.pictureUrl (unique)
     const imageUrls: string[] = [];
     if (Array.isArray(item.images)) {
       for (const img of item.images as Array<unknown>) {
@@ -88,16 +131,16 @@ export async function fetchReelMetadata(
       ok: true,
       value: {
         thumbnail_url: stored ?? pictureUrl ?? PLACEHOLDER_THUMB,
-        title: (meta.title as string) ?? null,
+        title: (meta.title as string) ?? (rawCaption ? rawCaption.split('\n')[0].slice(0, 80) : null),
         caption: rawCaption,
         author_username: username,
-        author_name: username,
+        author_name: (meta.full_name as string) ?? username,
         media_type,
         image_urls: imageUrls,
         raw: {
-          likeCount: meta.likeCount ?? null,
-          commentCount: meta.commentCount ?? null,
-          takenAt: meta.takenAt ?? null,
+          likeCount: meta.likeCount ?? item.like_count ?? null,
+          commentCount: meta.commentCount ?? item.comment_count ?? null,
+          takenAt: meta.takenAt ?? item.taken_at ?? null,
           videoUrl,
         },
       },
