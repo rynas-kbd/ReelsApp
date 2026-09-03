@@ -86,9 +86,7 @@ export async function fetchReelMetadata(
     }
 
     const data = await res.json();
-    const item = Array.isArray(data)
-      ? data[0]
-      : (data?.data?.items?.[0] ?? data?.data?.xdt_api__v1__usertags__user_id__feed_connection?.edges?.[0]?.node ?? data?.data ?? data?.result ?? data);
+    const item = extractMediaItem(data);
     if (!item) return { ok: false, error: 'réponse vide' };
 
     const meta = (item.meta ?? item.owner ?? item.user ?? item) as Record<string, unknown>;
@@ -98,18 +96,18 @@ export async function fetchReelMetadata(
       (item.thumbnail_url as string) ??
       (item.display_url as string) ??
       (item.cover_url as string) ??
-      (item.image_versions2?.candidates?.[0]?.url as string) ??
+      (item.image_versions2 as { candidates?: Array<{ url?: string }> })?.candidates?.[0]?.url ??
       null;
 
     const username =
       (meta.username as string) ??
       (item.author_username as string) ??
       (item.username as string) ??
-      (item.user?.username as string) ??
+      (item.user as { username?: string })?.username ??
       null;
 
     const rawCaption =
-      (typeof item.caption === 'string' ? item.caption : (item.caption?.text as string)) ??
+      (typeof item.caption === 'string' ? item.caption : (item.caption as { text?: string })?.text) ??
       (meta.caption as string) ??
       (meta.text as string) ??
       (meta.description as string) ??
@@ -195,4 +193,51 @@ async function storeThumbnail(
 ): Promise<string | null> {
   if (!pictureUrl) return null;
   return rehostImage(supabase, shortcode, pictureUrl);
+}
+
+function extractMediaItem(data: unknown): Record<string, unknown> | null {
+  if (!data || typeof data !== 'object') return null;
+  if (Array.isArray(data)) return (data[0] as Record<string, unknown>) ?? null;
+
+  const d = data as Record<string, unknown>;
+
+  const candidateArrays = [
+    d.items,
+    (d.data as Record<string, unknown> | undefined)?.items,
+    (d.data as Record<string, unknown> | undefined)?.posts,
+    d.posts,
+    d.result,
+  ];
+
+  for (const arr of candidateArrays) {
+    if (Array.isArray(arr) && arr.length > 0 && typeof arr[0] === 'object') {
+      return arr[0] as Record<string, unknown>;
+    }
+  }
+
+  const edges =
+    (d.data as Record<string, unknown> | undefined)?.xdt_api__v1__usertags__user_id__feed_connection as Record<string, unknown> | undefined;
+  if (Array.isArray(edges?.edges) && edges.edges.length > 0) {
+    const node = (edges.edges[0] as Record<string, unknown>)?.node;
+    if (node && typeof node === 'object') return node as Record<string, unknown>;
+  }
+
+  const candidateObjects = [
+    (d.data as Record<string, unknown> | undefined)?.item,
+    (d.data as Record<string, unknown> | undefined)?.media,
+    d.item,
+    d.media,
+    d.data,
+    d.result,
+  ];
+
+  for (const obj of candidateObjects) {
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      if ('caption' in obj || 'display_uri' in obj || 'image_versions2' in obj || 'user' in obj || 'pk' in obj) {
+        return obj as Record<string, unknown>;
+      }
+    }
+  }
+
+  return d;
 }

@@ -1,11 +1,11 @@
-// Classification d'un réel par IA — Google Gemini 2.5-flash multimodal.
+// Classification d'un réel par IA — Google Gemini 2.0-flash multimodal.
 // Selon le type de média :
 //   - Reel vidéo : transcript + miniature + légende/hashtags
 //   - Post image : image(s) + légende/hashtags
 // Renvoie catégorie hiérarchique (racine + sous-catégorie), tags et résumé.
 import type { Attempt } from './keys.ts';
 
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-2.0-flash';
 export const UNSORTED_CATEGORY = 'À trier';
 
 // Arbre des catégories passé au prompt
@@ -81,7 +81,6 @@ export async function classifyWithKey(
           generationConfig: {
             temperature: 0.2,
             responseMimeType: 'application/json',
-            thinkingConfig: { thinkingBudget: 0 },
           },
         }),
       },
