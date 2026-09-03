@@ -69,8 +69,8 @@ export async function classifyWithKey(
 
   // ── 2. Partie texte ──
   parts.push({ text: buildPrompt(input) });
-
   try {
+    console.log(`[classify] Appel Gemini model=${GEMINI_MODEL} title=${input.title?.slice(0, 30)} caption=${input.caption?.slice(0, 30)}`);
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
       {
@@ -88,15 +88,22 @@ export async function classifyWithKey(
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');
+      console.error(`[classify] Erreur Gemini HTTP ${res.status}: ${body.slice(0, 300)}`);
       return { ok: false, quota: res.status === 429, error: `HTTP ${res.status} ${body.slice(0, 200)}` };
     }
 
     const data = await res.json();
     const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
+    console.log(`[classify] Réponse brute Gemini: ${text.slice(0, 200)}`);
     const parsed = JSON.parse(stripFences(text)) as Partial<ClassifyResult>;
 
     const category = (parsed.category ?? '').trim();
-    if (!category) return { ok: false, error: 'réponse vide' };
+    if (!category) {
+      console.error(`[classify] Gemini n'a renvoyé aucune catégorie valide`);
+      return { ok: false, error: 'réponse vide' };
+    }
+
+    console.log(`[classify] Classification réussie: category="${category}", summary="${parsed.summary?.slice(0, 40)}"`);
 
     return {
       ok: true,

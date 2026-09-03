@@ -74,6 +74,7 @@ export async function fetchReelMetadata(
   }
 
   try {
+    console.log(`[enrich] Appel RapidAPI endpoint=${endpoint} host=${host} shortcode=${shortcode}`);
     const res = await fetch(endpoint, {
       method,
       headers,
@@ -82,12 +83,17 @@ export async function fetchReelMetadata(
 
     if (!res.ok) {
       const bodyText = await res.text().catch(() => '');
+      console.error(`[enrich] RapidAPI Erreur HTTP ${res.status}: ${bodyText.slice(0, 300)}`);
       return { ok: false, quota: res.status === 429, error: `HTTP ${res.status} ${bodyText.slice(0, 200)}` };
     }
 
     const data = await res.json();
+    console.log(`[enrich] RapidAPI Réponse reçue:`, JSON.stringify(data).slice(0, 300));
     const item = extractMediaItem(data);
-    if (!item) return { ok: false, error: 'réponse vide' };
+    if (!item) {
+      console.error(`[enrich] Impossible d'extraire l'item média de la réponse RapidAPI`);
+      return { ok: false, error: 'réponse vide' };
+    }
 
     const meta = (item.meta ?? item.owner ?? item.user ?? item) as Record<string, unknown>;
     const pictureUrl =
@@ -132,6 +138,7 @@ export async function fetchReelMetadata(
     if (imageUrls.length === 0 && pictureUrl) imageUrls.push(pictureUrl);
 
     const stored = await storeThumbnail(supabase, shortcode, pictureUrl);
+    console.log(`[enrich] Succès! pictureUrl=${pictureUrl}, stored=${stored}, username=${username}, caption=${rawCaption?.slice(0, 40)}`);
 
     return {
       ok: true,
