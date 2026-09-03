@@ -32,135 +32,190 @@ export async function fetchReelMetadata(
   const url = reelUrl(shortcode);
   const host = Deno.env.get('RAPIDAPI_HOST') ?? 'instagram-scraper2.p.rapidapi.com';
 
-  const isScraper2 = host.includes('instagram-scraper2');
-  const isMediaApi = host.includes('instagram-media-api');
-  const isFlashApi = host.includes('flashapi');
-  const isStableScraper = host.includes('instagram-scraper-stable-api');
+  const attemptsToTry: Array<{
+    method: 'GET' | 'POST';
+    endpoint: string;
+    headers: Record<string, string>;
+    body?: string;
+  }> = [];
 
-  let method = 'POST';
-  let endpoint = `https://${host}/api/instagram/links`;
-  const headers: Record<string, string> = {
-    'x-rapidapi-key': apiKey,
-    'x-rapidapi-host': host,
-  };
-  let body: string | undefined = undefined;
-
-  if (isScraper2) {
-    method = 'GET';
-    endpoint = `https://${host}/media_info?code_or_id_or_url=${shortcode}`;
-    headers['Content-Type'] = 'application/json';
-  } else if (isMediaApi) {
-    method = 'POST';
-    endpoint = `https://${host}/user/post`;
-    headers['Content-Type'] = 'application/json';
-    body = JSON.stringify({ url, shortcode, limit: 1 });
-  } else if (isFlashApi) {
-    method = 'GET';
-    endpoint = `https://${host}/ig/post_info/?shortcode=${shortcode}&url=${encodeURIComponent(url)}&nocors=false`;
-    headers['Content-Type'] = 'application/json';
-  } else if (isStableScraper) {
-    method = 'POST';
-    endpoint = `https://${host}/get_ig_post_details.php`;
-    headers['Content-Type'] = 'application/x-www-form-urlencoded';
-    body = new URLSearchParams({
-      shortcode_or_url: url,
-      url: url,
-      shortcode: shortcode,
-    }).toString();
-  } else {
-    method = 'POST';
-    headers['Content-Type'] = 'application/json';
-    body = JSON.stringify({ url });
-  }
-
-  try {
-    console.log(`[enrich] Appel RapidAPI endpoint=${endpoint} host=${host} shortcode=${shortcode}`);
-    const res = await fetch(endpoint, {
-      method,
-      headers,
-      body,
+  if (host.includes('instagram-scraper2')) {
+    attemptsToTry.push({
+      method: 'GET',
+      endpoint: `https://${host}/media_info?code_or_id_or_url=${encodeURIComponent(url)}`,
+      headers: { 'x-rapidapi-key': apiKey, 'x-rapidapi-host': host },
     });
-
-    if (!res.ok) {
-      const bodyText = await res.text().catch(() => '');
-      console.error(`[enrich] RapidAPI Erreur HTTP ${res.status}: ${bodyText.slice(0, 300)}`);
-      return { ok: false, quota: res.status === 429, error: `HTTP ${res.status} ${bodyText.slice(0, 200)}` };
-    }
-
-    const data = await res.json();
-    console.log(`[enrich] RapidAPI Réponse reçue:`, JSON.stringify(data).slice(0, 300));
-    const item = extractMediaItem(data);
-    if (!item) {
-      console.error(`[enrich] Impossible d'extraire l'item média de la réponse RapidAPI`);
-      return { ok: false, error: 'réponse vide' };
-    }
-
-    const meta = (item.meta ?? item.owner ?? item.user ?? item) as Record<string, unknown>;
-    const pictureUrl =
-      (item.display_uri as string) ??
-      (item.pictureUrl as string) ??
-      (item.thumbnail_url as string) ??
-      (item.display_url as string) ??
-      (item.cover_url as string) ??
-      (item.image_versions2 as { candidates?: Array<{ url?: string }> })?.candidates?.[0]?.url ??
-      null;
-
-    const username =
-      (meta.username as string) ??
-      (item.author_username as string) ??
-      (item.username as string) ??
-      (item.user as { username?: string })?.username ??
-      null;
-
-    const rawCaption =
-      (typeof item.caption === 'string' ? item.caption : (item.caption as { text?: string })?.text) ??
-      (meta.caption as string) ??
-      (meta.text as string) ??
-      (meta.description as string) ??
-      (meta.title as string) ??
-      null;
-
-    const videoUrl =
-      (item.urls as Array<{ url?: string }>)?.[0]?.url ??
-      (item.video_url as string) ??
-      (item.video_versions?.[0]?.url as string) ??
-      null;
-
-    const media_type: 'video' | 'image' = (videoUrl || item.media_type === 2) ? 'video' : 'image';
-
-    const imageUrls: string[] = [];
-    if (Array.isArray(item.images)) {
-      for (const img of item.images as Array<unknown>) {
-        const u = typeof img === 'string' ? img : (img as Record<string, unknown>)?.url as string;
-        if (u) imageUrls.push(u);
-      }
-    }
-    if (imageUrls.length === 0 && pictureUrl) imageUrls.push(pictureUrl);
-
-    const stored = await storeThumbnail(supabase, shortcode, pictureUrl);
-    console.log(`[enrich] Succès! pictureUrl=${pictureUrl}, stored=${stored}, username=${username}, caption=${rawCaption?.slice(0, 40)}`);
-
-    return {
-      ok: true,
-      value: {
-        thumbnail_url: stored ?? pictureUrl ?? PLACEHOLDER_THUMB,
-        title: (meta.title as string) ?? (rawCaption ? rawCaption.split('\n')[0].slice(0, 80) : null),
-        caption: rawCaption,
-        author_username: username,
-        author_name: (meta.full_name as string) ?? username,
-        media_type,
-        image_urls: imageUrls,
-        raw: {
-          likeCount: meta.likeCount ?? item.like_count ?? null,
-          commentCount: meta.commentCount ?? item.comment_count ?? null,
-          takenAt: meta.takenAt ?? item.taken_at ?? null,
-          videoUrl,
-        },
+    attemptsToTry.push({
+      method: 'GET',
+      endpoint: `https://${host}/media_info?code_or_id_or_url=${shortcode}`,
+      headers: { 'x-rapidapi-key': apiKey, 'x-rapidapi-host': host },
+    });
+    attemptsToTry.push({
+      method: 'POST',
+      endpoint: `https://instagram120.p.rapidapi.com/api/instagram/links`,
+      headers: {
+        'x-rapidapi-key': apiKey,
+        'x-rapidapi-host': 'instagram120.p.rapidapi.com',
+        'Content-Type': 'application/json',
       },
-    };
-  } catch (e) {
-    return { ok: false, error: String(e) };
+      body: JSON.stringify({ url }),
+    });
+  } else if (host.includes('instagram-media-api')) {
+    attemptsToTry.push({
+      method: 'POST',
+      endpoint: `https://${host}/user/post`,
+      headers: {
+        'x-rapidapi-key': apiKey,
+        'x-rapidapi-host': host,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url, shortcode, limit: 1 }),
+    });
+    attemptsToTry.push({
+      method: 'POST',
+      endpoint: `https://instagram120.p.rapidapi.com/api/instagram/links`,
+      headers: {
+        'x-rapidapi-key': apiKey,
+        'x-rapidapi-host': 'instagram120.p.rapidapi.com',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url }),
+    });
+  } else if (host.includes('flashapi')) {
+    attemptsToTry.push({
+      method: 'GET',
+      endpoint: `https://${host}/ig/post_info/?shortcode=${shortcode}&url=${encodeURIComponent(url)}&nocors=false`,
+      headers: { 'x-rapidapi-key': apiKey, 'x-rapidapi-host': host },
+    });
+  } else if (host.includes('instagram-scraper-stable-api')) {
+    attemptsToTry.push({
+      method: 'POST',
+      endpoint: `https://${host}/get_ig_post_details.php`,
+      headers: {
+        'x-rapidapi-key': apiKey,
+        'x-rapidapi-host': host,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ shortcode_or_url: url, url, shortcode }).toString(),
+    });
+  } else {
+    attemptsToTry.push({
+      method: 'POST',
+      endpoint: `https://${host}/api/instagram/links`,
+      headers: {
+        'x-rapidapi-key': apiKey,
+        'x-rapidapi-host': host,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url }),
+    });
   }
+
+  let lastError = 'aucune réponse valide';
+  let lastStatus = 0;
+
+  for (const config of attemptsToTry) {
+    try {
+      console.log(`[enrich] Essai endpoint=${config.endpoint}`);
+      const res = await fetch(config.endpoint, {
+        method: config.method,
+        headers: config.headers,
+        body: config.body,
+      });
+
+      if (!res.ok) {
+        lastStatus = res.status;
+        const bodyText = await res.text().catch(() => '');
+        console.error(`[enrich] HTTP ${res.status}: ${bodyText.slice(0, 200)}`);
+        if (res.status === 429) {
+          return { ok: false, quota: true, error: `HTTP 429 ${bodyText.slice(0, 100)}` };
+        }
+        continue;
+      }
+
+      const data = await res.json();
+      console.log(`[enrich] Réponse brute (${config.endpoint}):`, JSON.stringify(data).slice(0, 300));
+      const item = extractMediaItem(data);
+      if (!item || Object.keys(item).length === 0) {
+        console.warn(`[enrich] Item vide renvoyé par ${config.endpoint}`);
+        continue;
+      }
+
+      const meta = (item.meta ?? item.owner ?? item.user ?? item) as Record<string, unknown>;
+      const pictureUrl =
+        (item.display_uri as string) ??
+        (item.pictureUrl as string) ??
+        (item.thumbnail_url as string) ??
+        (item.display_url as string) ??
+        (item.cover_url as string) ??
+        (item.image_versions2 as { candidates?: Array<{ url?: string }> })?.candidates?.[0]?.url ??
+        null;
+
+      const username =
+        (meta.username as string) ??
+        (item.author_username as string) ??
+        (item.username as string) ??
+        (item.user as { username?: string })?.username ??
+        null;
+
+      const rawCaption =
+        (typeof item.caption === 'string' ? item.caption : (item.caption as { text?: string })?.text) ??
+        (meta.caption as string) ??
+        (meta.text as string) ??
+        (meta.description as string) ??
+        (meta.title as string) ??
+        null;
+
+      const videoUrl =
+        (item.urls as Array<{ url?: string }>)?.[0]?.url ??
+        (item.video_url as string) ??
+        (item.video_versions as Array<{ url?: string }>)?.[0]?.url ??
+        null;
+
+      if (!pictureUrl && !rawCaption && !username) {
+        console.warn(`[enrich] Métadonnées vides extraites depuis ${config.endpoint}`);
+        continue;
+      }
+
+      const media_type: 'video' | 'image' = (videoUrl || item.media_type === 2) ? 'video' : 'image';
+
+      const imageUrls: string[] = [];
+      if (Array.isArray(item.images)) {
+        for (const img of item.images as Array<unknown>) {
+          const u = typeof img === 'string' ? img : (img as Record<string, unknown>)?.url as string;
+          if (u) imageUrls.push(u);
+        }
+      }
+      if (imageUrls.length === 0 && pictureUrl) imageUrls.push(pictureUrl);
+
+      const stored = await storeThumbnail(supabase, shortcode, pictureUrl);
+      console.log(`[enrich] Succès! pictureUrl=${pictureUrl}, stored=${stored}, username=${username}, caption=${rawCaption?.slice(0, 40)}`);
+
+      return {
+        ok: true,
+        value: {
+          thumbnail_url: stored ?? pictureUrl ?? PLACEHOLDER_THUMB,
+          title: (meta.title as string) ?? (rawCaption ? rawCaption.split('\n')[0].slice(0, 80) : null),
+          caption: rawCaption,
+          author_username: username,
+          author_name: (meta.full_name as string) ?? username,
+          media_type,
+          image_urls: imageUrls,
+          raw: {
+            likeCount: meta.likeCount ?? item.like_count ?? null,
+            commentCount: meta.commentCount ?? item.comment_count ?? null,
+            takenAt: meta.takenAt ?? item.taken_at ?? null,
+            videoUrl,
+          },
+        },
+      };
+    } catch (e) {
+      console.error(`[enrich] Exception sur ${config.endpoint}:`, e);
+      lastError = String(e);
+    }
+  }
+
+  return { ok: false, quota: lastStatus === 429, error: lastError };
 }
 
 /**
