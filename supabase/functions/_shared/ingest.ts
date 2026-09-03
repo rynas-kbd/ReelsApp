@@ -47,15 +47,18 @@ export async function ingestSharedAttachment(
   if (shortcode) {
     const { data, error } = await supabase
       .from('reels')
-      .insert({
-        user_id: userId,
-        ig_url: reelUrl(shortcode),
-        shortcode,
-        source: 'webhook',
-        status: 'pending',
-      })
+      .upsert(
+        {
+          user_id: userId,
+          ig_url: reelUrl(shortcode),
+          shortcode,
+          source: 'webhook',
+          status: 'pending',
+        },
+        { onConflict: 'user_id,shortcode', ignoreDuplicates: true },
+      )
       .select('id')
-      .single();
+      .maybeSingle();
 
     // Doublon (unique constraint) → on ignore proprement.
     if (error || !data) return null;

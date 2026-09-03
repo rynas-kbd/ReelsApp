@@ -54,11 +54,17 @@ Deno.serve(async (req) => {
   // On répond 200 rapidement à Meta même si la signature échoue (sinon retries).
   if (!signatureOk) return new Response('EVENT_RECEIVED', { status: 200 });
 
-  // Traitement asynchrone (best-effort).
-  try {
-    await handlePayload(supabase, payload);
-  } catch (e) {
+  // Traitement en arrière-plan (best-effort) sans bloquer la réponse 200 OK à Meta.
+  // Meta impose un délai de réponse de 5s max sous peine de rejouer le webhook (retries).
+  const bgProcess = handlePayload(supabase, payload).catch((e) => {
     console.error('handlePayload error', e);
+  });
+
+  // Utiliser EdgeRuntime.waitUntil pour laisser le job tourner après la réponse HTTP
+  // @ts-ignore
+  if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+    // @ts-ignore
+    EdgeRuntime.waitUntil(bgProcess);
   }
 
   return new Response('EVENT_RECEIVED', { status: 200 });
