@@ -30,8 +30,9 @@ export async function fetchReelMetadata(
   apiKey: string,
 ): Promise<Attempt<ReelMetadata>> {
   const url = reelUrl(shortcode);
-  const host = Deno.env.get('RAPIDAPI_HOST') ?? 'instagram-media-api.p.rapidapi.com';
+  const host = Deno.env.get('RAPIDAPI_HOST') ?? 'instagram-scraper2.p.rapidapi.com';
 
+  const isScraper2 = host.includes('instagram-scraper2');
   const isMediaApi = host.includes('instagram-media-api');
   const isFlashApi = host.includes('flashapi');
   const isStableScraper = host.includes('instagram-scraper-stable-api');
@@ -44,7 +45,11 @@ export async function fetchReelMetadata(
   };
   let body: string | undefined = undefined;
 
-  if (isMediaApi) {
+  if (isScraper2) {
+    method = 'GET';
+    endpoint = `https://${host}/media_info?code_or_id_or_url=${shortcode}`;
+    headers['Content-Type'] = 'application/json';
+  } else if (isMediaApi) {
     method = 'POST';
     endpoint = `https://${host}/user/post`;
     headers['Content-Type'] = 'application/json';
@@ -81,11 +86,14 @@ export async function fetchReelMetadata(
     }
 
     const data = await res.json();
-    const item = Array.isArray(data) ? data[0] : data;
+    const item = Array.isArray(data)
+      ? data[0]
+      : (data?.data?.items?.[0] ?? data?.data?.xdt_api__v1__usertags__user_id__feed_connection?.edges?.[0]?.node ?? data?.data ?? data?.result ?? data);
     if (!item) return { ok: false, error: 'réponse vide' };
 
     const meta = (item.meta ?? item.owner ?? item.user ?? item) as Record<string, unknown>;
     const pictureUrl =
+      (item.display_uri as string) ??
       (item.pictureUrl as string) ??
       (item.thumbnail_url as string) ??
       (item.display_url as string) ??
@@ -97,15 +105,15 @@ export async function fetchReelMetadata(
       (meta.username as string) ??
       (item.author_username as string) ??
       (item.username as string) ??
+      (item.user?.username as string) ??
       null;
 
     const rawCaption =
+      (typeof item.caption === 'string' ? item.caption : (item.caption?.text as string)) ??
       (meta.caption as string) ??
       (meta.text as string) ??
       (meta.description as string) ??
       (meta.title as string) ??
-      (item.caption?.text as string) ??
-      (item.caption as string) ??
       null;
 
     const videoUrl =
@@ -114,7 +122,7 @@ export async function fetchReelMetadata(
       (item.video_versions?.[0]?.url as string) ??
       null;
 
-    const media_type: 'video' | 'image' = videoUrl ? 'video' : 'image';
+    const media_type: 'video' | 'image' = (videoUrl || item.media_type === 2) ? 'video' : 'image';
 
     const imageUrls: string[] = [];
     if (Array.isArray(item.images)) {
